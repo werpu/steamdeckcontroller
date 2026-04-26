@@ -56,19 +56,23 @@ void modifier_bits_match_boot_keyboard_report_layout() {
     expect_true(!sdc::modifier_bit(sdc::evdev::KEY_A).has_value(), "non-modifier has no modifier bit");
 }
 
-void gamepad_buttons_and_axes_map_to_report_positions() {
-    expect_eq(*sdc::gamepad_button_bit(sdc::evdev::BTN_SOUTH), 0, "south button bit");
-    expect_eq(*sdc::gamepad_button_bit(sdc::evdev::BTN_EAST), 1, "east button bit");
-    expect_eq(*sdc::gamepad_button_bit(sdc::evdev::BTN_MODE), 10, "mode button bit");
-    expect_true(!sdc::gamepad_button_bit(9999).has_value(), "unknown gamepad button unmapped");
+void xbox_buttons_and_axes_map_to_report_positions() {
+    expect_eq(*sdc::xbox_button_bit(sdc::evdev::BTN_SOUTH), 0, "A button bit");
+    expect_eq(*sdc::xbox_button_bit(sdc::evdev::BTN_EAST), 1, "B button bit");
+    expect_eq(*sdc::xbox_button_bit(sdc::evdev::BTN_WEST), 2, "X button bit");
+    expect_eq(*sdc::xbox_button_bit(sdc::evdev::BTN_NORTH), 3, "Y button bit");
+    expect_eq(*sdc::xbox_button_bit(sdc::evdev::BTN_MODE), 8, "guide button bit");
+    expect_true(!sdc::xbox_button_bit(9999).has_value(), "unknown gamepad button unmapped");
 
-    expect_eq(sdc::gamepad_axis_index(sdc::evdev::ABS_X), 2, "ABS_X report index");
-    expect_eq(sdc::gamepad_axis_index(sdc::evdev::ABS_Y), 3, "ABS_Y report index");
-    expect_eq(sdc::gamepad_axis_index(sdc::evdev::ABS_RX), 4, "ABS_RX report index");
-    expect_eq(sdc::gamepad_axis_index(sdc::evdev::ABS_RY), 5, "ABS_RY report index");
-    expect_eq(sdc::gamepad_axis_index(sdc::evdev::ABS_Z), 6, "ABS_Z report index");
-    expect_eq(sdc::gamepad_axis_index(sdc::evdev::ABS_RZ), 7, "ABS_RZ report index");
-    expect_eq(sdc::gamepad_axis_index(9999), -1, "unknown axis report index");
+    expect_eq(*sdc::xbox_trigger_offset(sdc::evdev::ABS_Z), 3UL, "left trigger report offset");
+    expect_eq(*sdc::xbox_trigger_offset(sdc::evdev::ABS_RZ), 4UL, "right trigger report offset");
+    expect_true(!sdc::xbox_trigger_offset(sdc::evdev::ABS_X).has_value(), "stick axis is not a trigger");
+
+    expect_eq(*sdc::xbox_axis_offset(sdc::evdev::ABS_X), 5UL, "left stick X report offset");
+    expect_eq(*sdc::xbox_axis_offset(sdc::evdev::ABS_Y), 7UL, "left stick Y report offset");
+    expect_eq(*sdc::xbox_axis_offset(sdc::evdev::ABS_RX), 9UL, "right stick X report offset");
+    expect_eq(*sdc::xbox_axis_offset(sdc::evdev::ABS_RY), 11UL, "right stick Y report offset");
+    expect_true(!sdc::xbox_axis_offset(sdc::evdev::ABS_Z).has_value(), "trigger is not a stick axis");
 }
 
 void absolute_axes_normalize_to_signed_hid_range() {
@@ -78,12 +82,40 @@ void absolute_axes_normalize_to_signed_hid_range() {
     expect_eq(sdc::normalize_abs(5, 5, 5), 0, "invalid range maps to neutral");
     expect_eq(sdc::normalize_abs(0, 100, -100), -127, "low out-of-range values clamp");
     expect_eq(sdc::normalize_abs(0, 100, 200), 127, "high out-of-range values clamp");
+
+    expect_eq(static_cast<int>(sdc::normalize_abs_u8(0, 1023, 0)), 0, "trigger minimum maps to 0");
+    expect_eq(static_cast<int>(sdc::normalize_abs_u8(0, 1023, 1023)), 255, "trigger maximum maps to 255");
+    expect_eq(sdc::normalize_abs_i16(0, 65535, 0), static_cast<int16_t>(-32768), "stick minimum maps to -32768");
+    expect_eq(sdc::normalize_abs_i16(0, 65535, 65535), static_cast<int16_t>(32767), "stick maximum maps to 32767");
 }
 
 void mouse_relative_values_clamp_to_hid_range() {
     expect_eq(sdc::clamp_i8(-500), -127, "negative mouse delta clamps");
     expect_eq(sdc::clamp_i8(0), 0, "zero mouse delta stays zero");
     expect_eq(sdc::clamp_i8(500), 127, "positive mouse delta clamps");
+}
+
+void xbox_report_writes_expected_bytes() {
+    sdc::XboxHidReport report;
+    expect_eq(report.bytes[2], 8, "neutral hat value");
+
+    report.set_button(0, true);
+    report.set_button(7, true);
+    expect_eq(report.bytes[0], 0x81, "button low byte");
+    report.set_button(0, false);
+    expect_eq(report.bytes[0], 0x80, "button release clears bit");
+
+    report.set_hat(1, -1);
+    expect_eq(report.bytes[2], 1, "hat northeast");
+    report.set_hat(0, 0);
+    expect_eq(report.bytes[2], 8, "hat neutral");
+
+    report.set_trigger(3, 200);
+    expect_eq(report.bytes[3], 200, "left trigger byte");
+
+    report.set_axis(5, -32768);
+    expect_eq(report.bytes[5], 0, "axis low byte");
+    expect_eq(report.bytes[6], 128, "axis high byte");
 }
 
 } // namespace
@@ -93,9 +125,10 @@ int main() {
     keyboard_digits_and_controls_map_to_hid_usage_ids();
     unknown_keys_are_not_mapped();
     modifier_bits_match_boot_keyboard_report_layout();
-    gamepad_buttons_and_axes_map_to_report_positions();
+    xbox_buttons_and_axes_map_to_report_positions();
     absolute_axes_normalize_to_signed_hid_range();
     mouse_relative_values_clamp_to_hid_range();
+    xbox_report_writes_expected_bytes();
 
     if (failures != 0) {
         std::cerr << failures << " test expectation(s) failed\n";

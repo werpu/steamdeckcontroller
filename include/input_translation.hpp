@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cstdint>
+#include <array>
+#include <cstddef>
 #include <optional>
 
 namespace sdc {
@@ -97,6 +99,10 @@ constexpr int BTN_START = 0x13b;
 constexpr int BTN_MODE = 0x13c;
 constexpr int BTN_THUMBL = 0x13d;
 constexpr int BTN_THUMBR = 0x13e;
+constexpr int BTN_DPAD_UP = 0x220;
+constexpr int BTN_DPAD_DOWN = 0x221;
+constexpr int BTN_DPAD_LEFT = 0x222;
+constexpr int BTN_DPAD_RIGHT = 0x223;
 
 constexpr int ABS_X = 0x00;
 constexpr int ABS_Y = 0x01;
@@ -104,13 +110,30 @@ constexpr int ABS_Z = 0x02;
 constexpr int ABS_RX = 0x03;
 constexpr int ABS_RY = 0x04;
 constexpr int ABS_RZ = 0x05;
+constexpr int ABS_HAT0X = 0x10;
+constexpr int ABS_HAT0Y = 0x11;
 } // namespace evdev
+
+struct XboxHidReport {
+    static constexpr size_t size = 13;
+
+    std::array<uint8_t, size> bytes{};
+
+    XboxHidReport();
+    void set_button(int bit, bool pressed);
+    void set_hat(int x, int y);
+    void set_trigger(size_t offset, uint8_t value);
+    void set_axis(size_t offset, int16_t value);
+};
 
 std::optional<uint8_t> key_to_hid(int code);
 std::optional<int> modifier_bit(int code);
-std::optional<int> gamepad_button_bit(int code);
-int gamepad_axis_index(int code);
+std::optional<int> xbox_button_bit(int code);
+std::optional<size_t> xbox_trigger_offset(int code);
+std::optional<size_t> xbox_axis_offset(int code);
 int clamp_i8(int value);
 int normalize_abs(int minimum, int maximum, int value);
+uint8_t normalize_abs_u8(int minimum, int maximum, int value);
+int16_t normalize_abs_i16(int minimum, int maximum, int value);
 
 } // namespace sdc

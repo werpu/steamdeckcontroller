@@ -4,6 +4,52 @@
 
 namespace sdc {
 
+XboxHidReport::XboxHidReport() {
+    bytes[2] = 8;
+}
+
+void XboxHidReport::set_button(int bit, bool pressed) {
+    if (bit < 0 || bit > 15) {
+        return;
+    }
+    uint16_t buttons = static_cast<uint16_t>(bytes[0] | (bytes[1] << 8));
+    const uint16_t mask = static_cast<uint16_t>(1U << bit);
+    if (pressed) {
+        buttons |= mask;
+    } else {
+        buttons &= static_cast<uint16_t>(~mask);
+    }
+    bytes[0] = static_cast<uint8_t>(buttons & 0xff);
+    bytes[1] = static_cast<uint8_t>((buttons >> 8) & 0xff);
+}
+
+void XboxHidReport::set_hat(int x, int y) {
+    uint8_t hat = 8;
+    if (x == 0 && y < 0) hat = 0;
+    else if (x > 0 && y < 0) hat = 1;
+    else if (x > 0 && y == 0) hat = 2;
+    else if (x > 0 && y > 0) hat = 3;
+    else if (x == 0 && y > 0) hat = 4;
+    else if (x < 0 && y > 0) hat = 5;
+    else if (x < 0 && y == 0) hat = 6;
+    else if (x < 0 && y < 0) hat = 7;
+    bytes[2] = hat;
+}
+
+void XboxHidReport::set_trigger(size_t offset, uint8_t value) {
+    if (offset < bytes.size()) {
+        bytes[offset] = value;
+    }
+}
+
+void XboxHidReport::set_axis(size_t offset, int16_t value) {
+    if (offset + 1 >= bytes.size()) {
+        return;
+    }
+    bytes[offset] = static_cast<uint8_t>(value & 0xff);
+    bytes[offset + 1] = static_cast<uint8_t>((value >> 8) & 0xff);
+}
+
 std::optional<uint8_t> key_to_hid(int code) {
     if (code >= evdev::KEY_1 && code <= evdev::KEY_9) {
         return static_cast<uint8_t>(0x1e + code - evdev::KEY_1);
@@ -96,32 +142,42 @@ std::optional<int> modifier_bit(int code) {
     }
 }
 
-std::optional<int> gamepad_button_bit(int code) {
+std::optional<int> xbox_button_bit(int code) {
     switch (code) {
         case evdev::BTN_SOUTH: return 0;
         case evdev::BTN_EAST: return 1;
-        case evdev::BTN_NORTH: return 2;
-        case evdev::BTN_WEST: return 3;
+        case evdev::BTN_WEST: return 2;
+        case evdev::BTN_NORTH: return 3;
         case evdev::BTN_TL: return 4;
         case evdev::BTN_TR: return 5;
         case evdev::BTN_SELECT: return 6;
         case evdev::BTN_START: return 7;
-        case evdev::BTN_THUMBL: return 8;
-        case evdev::BTN_THUMBR: return 9;
-        case evdev::BTN_MODE: return 10;
+        case evdev::BTN_MODE: return 8;
+        case evdev::BTN_THUMBL: return 9;
+        case evdev::BTN_THUMBR: return 10;
+        case evdev::BTN_DPAD_UP: return 12;
+        case evdev::BTN_DPAD_DOWN: return 13;
+        case evdev::BTN_DPAD_LEFT: return 14;
+        case evdev::BTN_DPAD_RIGHT: return 15;
         default: return std::nullopt;
     }
 }
 
-int gamepad_axis_index(int code) {
+std::optional<size_t> xbox_trigger_offset(int code) {
     switch (code) {
-        case evdev::ABS_X: return 2;
-        case evdev::ABS_Y: return 3;
-        case evdev::ABS_RX: return 4;
-        case evdev::ABS_RY: return 5;
-        case evdev::ABS_Z: return 6;
-        case evdev::ABS_RZ: return 7;
-        default: return -1;
+        case evdev::ABS_Z: return 3;
+        case evdev::ABS_RZ: return 4;
+        default: return std::nullopt;
+    }
+}
+
+std::optional<size_t> xbox_axis_offset(int code) {
+    switch (code) {
+        case evdev::ABS_X: return 5;
+        case evdev::ABS_Y: return 7;
+        case evdev::ABS_RX: return 9;
+        case evdev::ABS_RY: return 11;
+        default: return std::nullopt;
     }
 }
 
@@ -135,6 +191,22 @@ int normalize_abs(int minimum, int maximum, int value) {
     }
     const double normalized = (static_cast<double>(value - minimum) / (maximum - minimum)) * 254.0 - 127.0;
     return clamp_i8(static_cast<int>(normalized));
+}
+
+uint8_t normalize_abs_u8(int minimum, int maximum, int value) {
+    if (maximum <= minimum) {
+        return 0;
+    }
+    const double normalized = (static_cast<double>(value - minimum) / (maximum - minimum)) * 255.0;
+    return static_cast<uint8_t>(std::max(0, std::min(255, static_cast<int>(normalized))));
+}
+
+int16_t normalize_abs_i16(int minimum, int maximum, int value) {
+    if (maximum <= minimum) {
+        return 0;
+    }
+    const double normalized = (static_cast<double>(value - minimum) / (maximum - minimum)) * 65535.0 - 32768.0;
+    return static_cast<int16_t>(std::max(-32768, std::min(32767, static_cast<int>(normalized))));
 }
 
 } // namespace sdc

@@ -156,11 +156,11 @@ void setup_gadget() {
     std::filesystem::create_directories(gadget / "strings/0x409");
     write_text(gadget / "strings/0x409/serialnumber", "sdc-0001");
     write_text(gadget / "strings/0x409/manufacturer", "SteamDeckController");
-    write_text(gadget / "strings/0x409/product", "Input Passthrough");
+    write_text(gadget / "strings/0x409/product", "Input Passthrough Xbox-style HID");
 
     std::filesystem::create_directories(gadget / "configs/c.1/strings/0x409");
     write_text(gadget / "configs/c.1/MaxPower", "250");
-    write_text(gadget / "configs/c.1/strings/0x409/configuration", "HID keyboard mouse gamepad");
+    write_text(gadget / "configs/c.1/strings/0x409/configuration", "HID keyboard mouse Xbox-style gamepad");
 
     const std::vector<uint8_t> keyboard_desc = {
         0x05, 0x01, 0x09, 0x06, 0xa1, 0x01, 0x05, 0x07, 0x19, 0xe0, 0x29, 0xe7,
@@ -176,10 +176,17 @@ void setup_gadget() {
         0x81, 0x06, 0xc0, 0xc0
     };
     const std::vector<uint8_t> gamepad_desc = {
-        0x05, 0x01, 0x09, 0x05, 0xa1, 0x01, 0x05, 0x09, 0x19, 0x01, 0x29, 0x10,
-        0x15, 0x00, 0x25, 0x01, 0x75, 0x01, 0x95, 0x10, 0x81, 0x02, 0x05, 0x01,
-        0x09, 0x30, 0x09, 0x31, 0x09, 0x33, 0x09, 0x34, 0x09, 0x32, 0x09, 0x35,
-        0x15, 0x81, 0x25, 0x7f, 0x75, 0x08, 0x95, 0x06, 0x81, 0x02, 0xc0
+        0x05, 0x01, 0x09, 0x05, 0xa1, 0x01,
+        0x05, 0x09, 0x19, 0x01, 0x29, 0x10, 0x15, 0x00, 0x25, 0x01, 0x75, 0x01,
+        0x95, 0x10, 0x81, 0x02,
+        0x05, 0x01, 0x09, 0x39, 0x15, 0x00, 0x25, 0x08, 0x35, 0x00, 0x46, 0x3b,
+        0x01, 0x65, 0x14, 0x75, 0x04, 0x95, 0x01, 0x81, 0x42,
+        0x75, 0x04, 0x95, 0x01, 0x81, 0x03,
+        0x09, 0x32, 0x09, 0x35, 0x15, 0x00, 0x26, 0xff, 0x00, 0x75, 0x08, 0x95,
+        0x02, 0x81, 0x02,
+        0x09, 0x30, 0x09, 0x31, 0x09, 0x33, 0x09, 0x34, 0x16, 0x00, 0x80, 0x26,
+        0xff, 0x7f, 0x75, 0x10, 0x95, 0x04, 0x81, 0x02,
+        0xc0
     };
 
     struct HidFunction {
@@ -192,7 +199,7 @@ void setup_gadget() {
     const std::array functions = {
         HidFunction{"hid.usb0", 1, 1, 8, keyboard_desc},
         HidFunction{"hid.usb1", 2, 1, 4, mouse_desc},
-        HidFunction{"hid.usb2", 0, 0, 8, gamepad_desc},
+        HidFunction{"hid.usb2", 0, 0, static_cast<int>(sdc::XboxHidReport::size), gamepad_desc},
     };
 
     for (const auto &fn : functions) {
@@ -240,10 +247,6 @@ void write_report(int fd, const uint8_t *data, size_t len) {
     (void)written;
 }
 
-int normalize_abs(const input_absinfo &info, int value) {
-    return sdc::normalize_abs(info.minimum, info.maximum, value);
-}
-
 std::optional<DeviceKind> classify_device(int fd) {
     const auto ev_bits = ioctl_bits(fd, EVIOCGBIT(0, EV_MAX), EV_MAX);
     const auto key_bits = ioctl_bits(fd, EVIOCGBIT(EV_KEY, KEY_MAX), KEY_MAX);
@@ -283,7 +286,7 @@ std::vector<InputDevice> open_input_devices() {
         ioctl(fd, EVIOCGNAME(name.size()), name.data());
         InputDevice device{fd, path, name.data(), *kind, {}};
         if (*kind == DeviceKind::Gamepad) {
-            for (int code : {ABS_X, ABS_Y, ABS_RX, ABS_RY, ABS_Z, ABS_RZ}) {
+            for (int code : {ABS_X, ABS_Y, ABS_RX, ABS_RY, ABS_Z, ABS_RZ, ABS_HAT0X, ABS_HAT0Y}) {
                 input_absinfo info{};
                 if (ioctl(fd, EVIOCGABS(code), &info) == 0) {
                     device.abs_info[code] = info;
@@ -308,7 +311,7 @@ void release_devices(std::vector<InputDevice> &devices) {
 
 void worker_main() {
     try {
-        set_status(true, "Preparing USB gadget", "Configuring keyboard, mouse, and generic HID gamepad endpoints.");
+        set_status(true, "Preparing USB gadget", "Configuring keyboard, mouse, and Xbox-style HID gamepad endpoints.");
         setup_gadget();
 
         int keyboard_fd = open_hidg(0);
@@ -329,7 +332,9 @@ void worker_main() {
 
         std::array<uint8_t, 8> keyboard_report{};
         std::array<uint8_t, 4> mouse_report{};
-        std::array<uint8_t, 8> gamepad_report{};
+        sdc::XboxHidReport gamepad_report;
+        int hat_x = 0;
+        int hat_y = 0;
         std::set<int> pressed_keys;
 
         while (!g_stop_requested.load()) {
@@ -402,25 +407,30 @@ void worker_main() {
                     } else if (device.kind == DeviceKind::Gamepad) {
                         bool changed = false;
                         if (event.type == EV_KEY) {
-                            if (auto bit = sdc::gamepad_button_bit(event.code)) {
-                                const uint16_t mask = static_cast<uint16_t>(1U << *bit);
-                                uint16_t buttons = static_cast<uint16_t>(gamepad_report[0] | (gamepad_report[1] << 8));
-                                if (event.value) buttons |= mask;
-                                else buttons &= static_cast<uint16_t>(~mask);
-                                gamepad_report[0] = static_cast<uint8_t>(buttons & 0xff);
-                                gamepad_report[1] = static_cast<uint8_t>((buttons >> 8) & 0xff);
+                            if (auto bit = sdc::xbox_button_bit(event.code)) {
+                                gamepad_report.set_button(*bit, event.value != 0);
                                 changed = true;
                             }
                         } else if (event.type == EV_ABS) {
-                            const int axis = sdc::gamepad_axis_index(event.code);
                             auto info = device.abs_info.find(event.code);
-                            if (axis >= 0 && info != device.abs_info.end()) {
-                                gamepad_report[axis] = static_cast<uint8_t>(normalize_abs(info->second, event.value));
+                            if (event.code == ABS_HAT0X) {
+                                hat_x = event.value;
+                                gamepad_report.set_hat(hat_x, hat_y);
+                                changed = true;
+                            } else if (event.code == ABS_HAT0Y) {
+                                hat_y = event.value;
+                                gamepad_report.set_hat(hat_x, hat_y);
+                                changed = true;
+                            } else if (auto offset = sdc::xbox_trigger_offset(event.code); offset && info != device.abs_info.end()) {
+                                gamepad_report.set_trigger(*offset, sdc::normalize_abs_u8(info->second.minimum, info->second.maximum, event.value));
+                                changed = true;
+                            } else if (auto offset = sdc::xbox_axis_offset(event.code); offset && info != device.abs_info.end()) {
+                                gamepad_report.set_axis(*offset, sdc::normalize_abs_i16(info->second.minimum, info->second.maximum, event.value));
                                 changed = true;
                             }
                         }
                         if (changed) {
-                            write_report(gamepad_fd, gamepad_report.data(), gamepad_report.size());
+                            write_report(gamepad_fd, gamepad_report.bytes.data(), gamepad_report.bytes.size());
                         }
                     }
                 }
@@ -431,7 +441,8 @@ void worker_main() {
         std::array<uint8_t, 4> zero4{};
         write_report(keyboard_fd, zero8.data(), zero8.size());
         write_report(mouse_fd, zero4.data(), zero4.size());
-        write_report(gamepad_fd, zero8.data(), zero8.size());
+        const sdc::XboxHidReport neutral_gamepad_report;
+        write_report(gamepad_fd, neutral_gamepad_report.bytes.data(), neutral_gamepad_report.bytes.size());
 
         release_devices(devices);
         close(keyboard_fd);

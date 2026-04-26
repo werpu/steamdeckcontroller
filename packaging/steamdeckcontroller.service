@@ -1,0 +1,16 @@
+[Unit]
+Description=Steam Deck Controller USB Passthrough Daemon
+After=multi-user.target steamdeckcontroller-prepare.service
+Requires=steamdeckcontroller-prepare.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/steamdeckcontrollerd
+Restart=on-failure
+RuntimeDirectory=steamdeckcontroller
+RuntimeDirectoryMode=0755
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target

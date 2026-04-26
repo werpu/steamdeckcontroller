@@ -8,6 +8,15 @@ add_library(steamdeckcontroller_core
         src/input_translation.cpp)
 target_include_directories(steamdeckcontroller_core PUBLIC include)
 
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_package(Threads REQUIRED)
+    target_sources(steamdeckcontroller_core PRIVATE src/controller_runtime_linux.cpp)
+    target_link_libraries(steamdeckcontroller_core PUBLIC Threads::Threads)
+    add_executable(steamdeckcontrollerd src/daemon.cpp)
+    target_link_libraries(steamdeckcontrollerd PRIVATE steamdeckcontroller_core)
+    install(TARGETS steamdeckcontrollerd RUNTIME DESTINATION bin)
+endif ()
+
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GTK3 gtk+-3.0)
 

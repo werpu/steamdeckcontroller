@@ -34,6 +34,8 @@ The frontend stays unprivileged:
 - sends commands to the daemon
 - renders errors from the daemon
 
+The frontend does not receive or forward input events. Once capture is active, the daemon owns the grabbed evdev file descriptors and the USB HID gadget endpoints.
+
 ## IPC Shape
 
 A simple Unix domain socket is enough.
@@ -119,13 +121,7 @@ journalctl -u steamdeckcontroller.service -f
 
 ## Frontend Flow
 
-The GTK app changes from this:
-
-```text
-Start button -> setup_gadget() + open input devices + forward events
-```
-
-to this:
+The GTK app now works as a frontend-only process:
 
 ```text
 Start button -> connect socket -> send START -> show response
@@ -134,6 +130,21 @@ timer        -> connect socket -> send STATUS -> update label
 ```
 
 This lets Steam launch the frontend normally. The service already has the required privileges.
+
+The GUI starts and stops capture, not the daemon process itself. The daemon process is expected to be started by systemd and remain available in the background.
+
+## Local Input During Capture
+
+When capture starts, the daemon grabs the selected keyboard, mouse, and controller event devices with `EVIOCGRAB`. Those events are then blocked from the local SteamOS/Wayland session and forwarded to the connected USB host.
+
+Touch input usually remains local because the touchscreen is a separate absolute touch device and is not classified as a keyboard, relative mouse, or gamepad by the current grab logic. That means the Stop button can still work from the Deck touchscreen while keyboard/mouse/controller input is being forwarded.
+
+Do not rely only on the Stop button. Keep at least one recovery path:
+
+- touchscreen, if it remains ungrabbed
+- `Ctrl+Shift+Esc` emergency chord
+- SSH into the Deck and send `STOP` to the socket
+- systemd stop/restart of the daemon
 
 ## Recovery Behavior
 
@@ -154,13 +165,18 @@ SIGTERM
 
 Both should call the same cleanup path.
 
-## Development Migration Plan
+## Current Implementation State
 
-1. Move gadget/input forwarding code from `main.cpp` into a reusable runtime class.
-2. Keep `input_translation` as the pure tested library.
-3. Add `steamdeckcontrollerd`, a CLI daemon target that runs as root and exposes the Unix socket.
-4. Change the GTK executable to a frontend-only target.
-5. Add manual integration tests with `socat`.
-6. Add the systemd unit file under a packaging or deploy directory.
+The split is implemented in these pieces:
 
-The current code already has the important split started: report translation is in `steamdeckcontroller_core`, while Linux runtime and GTK are still mixed in `main.cpp`.
+- `steamdeckcontrollerd`: root daemon and Unix socket server
+- `ControllerRuntime`: owns gadget setup, evdev grabbing, and forwarding
+- `steamdeckcontroller`: normal GTK frontend
+- `steamdeckcontroller_core`: shared translation/runtime library
+
+Remaining work:
+
+1. Add a small `steamdeckcontrollerctl` command for shell control without `socat`.
+2. Tighten socket permissions or add a group-based access policy.
+3. Add structured daemon logs for device selection and forwarding errors.
+4. Add config for device include/exclude rules.

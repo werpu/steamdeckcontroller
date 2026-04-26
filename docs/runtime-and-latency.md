@@ -24,9 +24,9 @@ ls /sys/kernel/config/usb_gadget
 
 If the path is missing, ConfigFS may not be mounted or the kernel may not expose USB gadget support.
 
-## Permissions
+## Permissions And Process Model
 
-The app needs access to:
+The forwarding daemon needs access to:
 
 ```text
 /dev/input/event*
@@ -34,24 +34,23 @@ The app needs access to:
 /sys/kernel/config/usb_gadget
 ```
 
-The simplest prototype path is running as root:
-
-```sh
-sudo ./build/steamdeckcontroller
-```
-
-A production design should split this into:
+The GTK frontend should run as the normal Steam user. It only talks to the daemon through:
 
 ```text
-privileged forwarding daemon
-normal user GTK frontend
+/run/steamdeckcontroller/control.sock
 ```
 
-The frontend would control the daemon over a local socket or similar IPC. That avoids launching a full GUI as root.
+The daemon runs as root through systemd. This is required for USB gadget setup and evdev grabbing.
 
-## Runtime Flow
+## Daemon Runtime Flow
 
-Start capture from the GTK window. The app then:
+Start capture from the GTK window. The frontend sends:
+
+```text
+START
+```
+
+The daemon then:
 
 1. creates or reuses the ConfigFS gadget directory
 2. writes device IDs, strings, configuration, HID descriptors, and report lengths
@@ -62,13 +61,21 @@ Start capture from the GTK window. The app then:
 7. opens and grabs matching evdev input devices
 8. forwards events until stopped
 
-Stop capture from the GTK window or press:
+Stop capture from the GTK window. The frontend sends:
+
+```text
+STOP
+```
+
+The daemon can also stop from the local emergency chord:
 
 ```text
 Ctrl+Shift+Esc
 ```
 
 The emergency chord is consumed locally and stops forwarding.
+
+The touchscreen usually remains usable because the current classifier does not grab absolute touch devices. On Steam Deck this provides a practical way to press Stop while keyboard, mouse, and controller events are grabbed and forwarded.
 
 ## Verifying USB Gadget State
 

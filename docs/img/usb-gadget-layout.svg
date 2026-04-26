@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="420" viewBox="0 0 920 420" role="img" aria-labelledby="title desc">
+  <title id="title">USB gadget layout</title>
+  <desc id="desc">The ConfigFS gadget contains strings, one configuration, and three HID functions linked into the configuration.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#374151"/>
+    </marker>
+    <style>
+      .root { fill: #edf7ed; stroke: #3f6b3f; stroke-width: 1.5; rx: 10; }
+      .box { fill: #f8fafc; stroke: #374151; stroke-width: 1.4; rx: 8; }
+      .fn { fill: #eef6ff; stroke: #3b6388; stroke-width: 1.4; rx: 8; }
+      .cfg { fill: #fff7e6; stroke: #8a6d2f; stroke-width: 1.4; rx: 8; }
+      .title { font: 700 16px sans-serif; fill: #1f2933; }
+      .text { font: 13px sans-serif; fill: #263238; }
+      .small { font: 12px sans-serif; fill: #40515c; }
+      .line { stroke: #374151; stroke-width: 2; fill: none; marker-end: url(#arrow); }
+      .dash { stroke: #64748b; stroke-width: 1.8; stroke-dasharray: 5 4; fill: none; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect x="30" y="28" width="860" height="360" class="root"/>
+  <text x="54" y="58" class="title">/sys/kernel/config/usb_gadget/sdc_passthrough</text>
+
+  <rect x="60" y="90" width="170" height="94" class="box"/>
+  <text x="86" y="118" class="title">Device IDs</text>
+  <text x="82" y="145" class="small">idVendor / idProduct</text>
+  <text x="92" y="164" class="small">bcdUSB / bcdDevice</text>
+
+  <rect x="60" y="220" width="170" height="94" class="box"/>
+  <text x="100" y="248" class="title">Strings</text>
+  <text x="86" y="275" class="small">manufacturer</text>
+  <text x="96" y="294" class="small">product</text>
+
+  <rect x="300" y="86" width="220" height="240" class="fn"/>
+  <text x="358" y="116" class="title">functions/</text>
+  <rect x="330" y="142" width="160" height="42" class="box"/>
+  <text x="370" y="168" class="text">hid.usb0</text>
+  <text x="502" y="166" class="small">8 bytes</text>
+  <rect x="330" y="202" width="160" height="42" class="box"/>
+  <text x="370" y="228" class="text">hid.usb1</text>
+  <text x="502" y="226" class="small">4 bytes</text>
+  <rect x="330" y="262" width="160" height="42" class="box"/>
+  <text x="370" y="288" class="text">hid.usb2</text>
+  <text x="502" y="286" class="small">13 bytes</text>
+
+  <rect x="610" y="86" width="220" height="240" class="cfg"/>
+  <text x="668" y="116" class="title">configs/c.1</text>
+  <rect x="640" y="142" width="160" height="42" class="box"/>
+  <text x="666" y="168" class="text">keyboard link</text>
+  <rect x="640" y="202" width="160" height="42" class="box"/>
+  <text x="680" y="228" class="text">mouse link</text>
+  <rect x="640" y="262" width="160" height="42" class="box"/>
+  <text x="673" y="288" class="text">gamepad link</text>
+
+  <path class="dash" d="M490 163 H640"/>
+  <path class="dash" d="M490 223 H640"/>
+  <path class="dash" d="M490 283 H640"/>
+
+  <rect x="350" y="350" width="220" height="34" class="box"/>
+  <text x="375" y="372" class="small">UDC binding makes the device visible.</text>
+
+  <path class="line" d="M720 326 C720 370 600 367 570 367"/>
+</svg>

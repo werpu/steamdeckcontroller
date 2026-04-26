@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="440" viewBox="0 0 920 440" role="img" aria-labelledby="title desc">
+  <title id="title">Event translation flow</title>
+  <desc id="desc">Evdev keyboard, mouse, and controller events update report state and are written to HID gadget endpoints.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#334155"/>
+    </marker>
+    <style>
+      .box { fill: #f8fafc; stroke: #334155; stroke-width: 1.4; rx: 8; }
+      .kbd { fill: #edf7ed; stroke: #3f6b3f; stroke-width: 1.4; rx: 8; }
+      .mouse { fill: #eef6ff; stroke: #3b6388; stroke-width: 1.4; rx: 8; }
+      .pad { fill: #fff7e6; stroke: #8a6d2f; stroke-width: 1.4; rx: 8; }
+      .title { font: 700 16px sans-serif; fill: #1f2933; }
+      .text { font: 13px sans-serif; fill: #263238; }
+      .small { font: 12px sans-serif; fill: #40515c; }
+      .line { stroke: #334155; stroke-width: 2; fill: none; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect x="40" y="36" width="190" height="74" class="box"/>
+  <text x="86" y="66" class="title">evdev event</text>
+  <text x="66" y="91" class="small">type, code, value, device kind</text>
+
+  <rect x="310" y="24" width="210" height="98" class="kbd"/>
+  <text x="374" y="54" class="title">Keyboard</text>
+  <text x="337" y="81" class="small">EV_KEY updates modifier byte</text>
+  <text x="337" y="100" class="small">or six-key usage slots</text>
+
+  <rect x="310" y="170" width="210" height="98" class="mouse"/>
+  <text x="388" y="200" class="title">Mouse</text>
+  <text x="337" y="227" class="small">EV_REL becomes X/Y/wheel</text>
+  <text x="337" y="246" class="small">EV_KEY updates button bits</text>
+
+  <rect x="310" y="316" width="210" height="98" class="pad"/>
+  <text x="358" y="346" class="title">Controller</text>
+  <text x="337" y="373" class="small">buttons update bitfield</text>
+  <text x="337" y="392" class="small">axes normalize to HID ranges</text>
+
+  <rect x="610" y="24" width="230" height="98" class="kbd"/>
+  <text x="668" y="54" class="title">8-byte report</text>
+  <text x="642" y="81" class="small">modifiers, reserved, six keys</text>
+  <text x="690" y="100" class="small">/dev/hidg0</text>
+
+  <rect x="610" y="170" width="230" height="98" class="mouse"/>
+  <text x="667" y="200" class="title">4-byte report</text>
+  <text x="650" y="227" class="small">buttons, X, Y, wheel</text>
+  <text x="690" y="246" class="small">/dev/hidg1</text>
+
+  <rect x="610" y="316" width="230" height="98" class="pad"/>
+  <text x="661" y="346" class="title">13-byte report</text>
+  <text x="644" y="373" class="small">buttons, hat, triggers, sticks</text>
+  <text x="690" y="392" class="small">/dev/hidg2</text>
+
+  <path class="line" d="M230 73 H310"/>
+  <path class="line" d="M230 73 C270 73 270 219 310 219"/>
+  <path class="line" d="M230 73 C270 73 270 365 310 365"/>
+
+  <path class="line" d="M520 73 H610"/>
+  <path class="line" d="M520 219 H610"/>
+  <path class="line" d="M520 365 H610"/>
+</svg>

@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="360" viewBox="0 0 920 360" role="img" aria-labelledby="title desc">
+  <title id="title">System flow from physical inputs to USB host</title>
+  <desc id="desc">Physical input devices are read through evdev, forwarded by the application, written to HID gadget endpoints, and seen by a connected host over USB.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#2f4f4f"/>
+    </marker>
+    <style>
+      .box { fill: #f8fafc; stroke: #345; stroke-width: 1.5; rx: 8; }
+      .group { fill: #eef6ff; stroke: #4c6f91; stroke-width: 1.5; rx: 10; }
+      .accent { fill: #fff7e6; stroke: #8a6d2f; stroke-width: 1.5; rx: 8; }
+      .title { font: 700 16px sans-serif; fill: #1f2933; }
+      .text { font: 13px sans-serif; fill: #263238; }
+      .small { font: 12px sans-serif; fill: #40515c; }
+      .line { stroke: #2f4f4f; stroke-width: 2; fill: none; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect x="20" y="34" width="160" height="250" class="group"/>
+  <text x="42" y="64" class="title">Physical Inputs</text>
+  <rect x="45" y="88" width="110" height="42" class="box"/>
+  <text x="69" y="114" class="text">Keyboard</text>
+  <rect x="45" y="146" width="110" height="42" class="box"/>
+  <text x="78" y="172" class="text">Mouse</text>
+  <rect x="45" y="204" width="110" height="42" class="box"/>
+  <text x="67" y="230" class="text">Controller</text>
+
+  <rect x="250" y="34" width="180" height="250" class="group"/>
+  <text x="286" y="64" class="title">Linux Input</text>
+  <rect x="280" y="98" width="120" height="46" class="box"/>
+  <text x="297" y="119" class="text">/dev/input</text>
+  <text x="309" y="136" class="small">event*</text>
+  <rect x="280" y="174" width="120" height="46" class="box"/>
+  <text x="302" y="195" class="text">EVIOCGRAB</text>
+  <text x="296" y="212" class="small">local capture</text>
+
+  <rect x="500" y="34" width="170" height="250" class="accent"/>
+  <text x="548" y="64" class="title">App</text>
+  <rect x="525" y="92" width="120" height="42" class="box"/>
+  <text x="547" y="118" class="text">Classify</text>
+  <rect x="525" y="150" width="120" height="42" class="box"/>
+  <text x="542" y="176" class="text">Translate</text>
+  <rect x="525" y="208" width="120" height="42" class="box"/>
+  <text x="541" y="234" class="text">Write HID</text>
+
+  <rect x="740" y="34" width="160" height="250" class="group"/>
+  <text x="773" y="64" class="title">USB Host</text>
+  <rect x="765" y="88" width="110" height="42" class="box"/>
+  <text x="779" y="114" class="text">Keyboard</text>
+  <rect x="765" y="146" width="110" height="42" class="box"/>
+  <text x="794" y="172" class="text">Mouse</text>
+  <rect x="765" y="204" width="110" height="42" class="box"/>
+  <text x="788" y="230" class="text">Gamepad</text>
+
+  <path class="line" d="M180 159 H250"/>
+  <path class="line" d="M430 159 H500"/>
+  <path class="line" d="M670 159 H740"/>
+
+  <text x="198" y="145" class="small">evdev</text>
+  <text x="448" y="145" class="small">events</text>
+  <text x="688" y="145" class="small">USB HID</text>
+
+  <rect x="320" y="305" width="280" height="34" class="box"/>
+  <text x="343" y="327" class="small">Wayland is bypassed: capture happens below the compositor.</text>
+</svg>

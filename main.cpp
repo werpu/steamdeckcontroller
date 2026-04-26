@@ -129,6 +129,12 @@ void write_binary(const std::filesystem::path &path, const std::vector<uint8_t> 
     out.write(reinterpret_cast<const char *>(value.data()), static_cast<std::streamsize>(value.size()));
 }
 
+void write_text_if_exists(const std::filesystem::path &path, const std::string &value) {
+    if (std::filesystem::exists(path)) {
+        write_text(path, value);
+    }
+}
+
 void ensure_symlink(const std::filesystem::path &target, const std::filesystem::path &link) {
     std::error_code ec;
     if (!std::filesystem::exists(link, ec)) {
@@ -209,6 +215,7 @@ void setup_gadget() {
         write_text(dir / "subclass", std::to_string(fn.subclass));
         write_text(dir / "report_length", std::to_string(fn.report_len));
         write_binary(dir / "report_desc", fn.desc);
+        write_text_if_exists(dir / "interval", "1");
         ensure_symlink(dir, gadget / "configs/c.1" / fn.name);
     }
 

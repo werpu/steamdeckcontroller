@@ -46,4 +46,12 @@ While capture is active, `Ctrl+Shift+Esc` is reserved as a local emergency stop 
 
 Keyboard and relative mouse forwarding are direct HID translations. The controller endpoint uses an Xbox-style HID layout with A/B/X/Y buttons, shoulders, guide/back/start, stick buttons, D-pad, analog triggers, and 16-bit stick axes.
 
+When the running kernel exposes the HID gadget `interval` ConfigFS attribute, the app requests interval `1` for each HID function before binding the gadget. Older kernels do not expose this attribute, so the app leaves their kernel defaults in place.
+
 This is still not a true Xbox 360/XInput USB device. Real wired Xbox controllers use vendor-specific USB interfaces, so full XInput emulation would need a FunctionFS/raw-gadget implementation instead of the kernel HID gadget function. If `/sys/class/udc` is empty, the current hardware/kernel cannot present itself as a USB device through software alone.
+
+## Documentation
+
+- [Architecture](docs/architecture.md)
+- [Input translation](docs/input-translation.md)
+- [Runtime, verification, and latency](docs/runtime-and-latency.md)

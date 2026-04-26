@@ -1,3 +1,5 @@
+#include "control_protocol.hpp"
+
 #include <gtk/gtk.h>
 
 #include <sys/socket.h>
@@ -33,7 +35,7 @@ std::string send_command(const std::string &command) {
         return "ERR Cannot connect to daemon at " + std::string(kSocketPath) + ": " + error;
     }
 
-    std::string wire = command + "\n";
+    std::string wire = sdc::format_control_command(command);
     if (write(fd, wire.data(), wire.size()) < 0) {
         const std::string error = std::strerror(errno);
         close(fd);
@@ -61,21 +63,15 @@ std::string send_command(const std::string &command) {
 }
 
 void update_from_response(const std::string &response) {
-    const bool error = response.rfind("ERR ", 0) == 0;
-    const bool running = response.rfind("STATUS RUNNING", 0) == 0 || response == "OK Started" || response == "OK Already running";
-    const bool stopped = response.rfind("STATUS STOPPED", 0) == 0 || response == "OK Stopped";
+    const sdc::FrontendResponse parsed = sdc::parse_frontend_response(response);
 
-    const auto newline = response.find('\n');
-    const std::string headline = response.substr(0, newline);
-    const std::string details = newline == std::string::npos ? "" : response.substr(newline + 1);
+    gtk_label_set_text(GTK_LABEL(g_status_label), parsed.headline.c_str());
+    gtk_label_set_text(GTK_LABEL(g_detail_label), parsed.details.c_str());
 
-    gtk_label_set_text(GTK_LABEL(g_status_label), headline.c_str());
-    gtk_label_set_text(GTK_LABEL(g_detail_label), details.empty() ? response.c_str() : details.c_str());
-
-    if (error || stopped) {
+    if (parsed.state == sdc::CaptureState::Error || parsed.state == sdc::CaptureState::Stopped) {
         gtk_widget_set_sensitive(g_start_button, TRUE);
         gtk_widget_set_sensitive(g_stop_button, FALSE);
-    } else if (running) {
+    } else if (parsed.state == sdc::CaptureState::Running) {
         gtk_widget_set_sensitive(g_start_button, FALSE);
         gtk_widget_set_sensitive(g_stop_button, TRUE);
     }

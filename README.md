@@ -55,5 +55,6 @@ This is still not a true Xbox 360/XInput USB device. Real wired Xbox controllers
 - [Architecture](docs/architecture.md)
 - [Input translation](docs/input-translation.md)
 - [Runtime, verification, and latency](docs/runtime-and-latency.md)
+- [Setup guide](docs/setup.md)
 - [Installation on SteamOS](docs/installation.md)
 - [Privileged daemon and Steam frontend](docs/daemon-frontend-split.md)

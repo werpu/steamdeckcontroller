@@ -5,7 +5,8 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_library(steamdeckcontroller_core
-        src/input_translation.cpp)
+        src/input_translation.cpp
+        src/control_protocol.cpp)
 target_include_directories(steamdeckcontroller_core PUBLIC include)
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
@@ -36,4 +37,8 @@ if (BUILD_TESTING)
     add_executable(input_translation_tests tests/input_translation_tests.cpp)
     target_link_libraries(input_translation_tests PRIVATE steamdeckcontroller_core)
     add_test(NAME input_translation_tests COMMAND input_translation_tests)
+
+    add_executable(control_protocol_tests tests/control_protocol_tests.cpp)
+    target_link_libraries(control_protocol_tests PRIVATE steamdeckcontroller_core)
+    add_test(NAME control_protocol_tests COMMAND control_protocol_tests)
 endif ()

@@ -1,13 +1,15 @@
 # Installation On SteamOS
 
-The current application still runs the GTK UI and the privileged forwarding code in one process. That means it must run as root. The installer below makes setup repeatable, but it is not the final daemon/frontend architecture.
+The application is split into a root daemon and a normal user GTK frontend. The installer makes that setup repeatable on SteamOS.
 
 The installer does four things:
 
-1. installs the compiled binary to `/usr/local/bin/steamdeckcontroller`
-2. installs a helper script that loads `libcomposite` and checks ConfigFS/UDC state
-3. installs a systemd oneshot preparation service
-4. installs a desktop launcher that starts the app through `pkexec`
+1. installs the compiled frontend to `/usr/local/bin/steamdeckcontroller`
+2. installs the compiled daemon to `/usr/local/bin/steamdeckcontrollerd`
+3. installs a helper script that loads `libcomposite` and checks ConfigFS/UDC state
+4. installs a systemd oneshot preparation service
+5. installs a systemd daemon service
+6. installs a desktop launcher for the unprivileged frontend
 
 ## Build First
 
@@ -33,6 +35,13 @@ sudo systemctl start steamdeckcontroller-prepare.service
 systemctl status steamdeckcontroller-prepare.service
 ```
 
+Start the daemon:
+
+```sh
+sudo systemctl enable --now steamdeckcontroller.service
+systemctl status steamdeckcontroller.service
+```
+
 The service checks:
 
 - `libcomposite` can be loaded
@@ -48,19 +57,13 @@ Advanced > USB Configuration > USB Dual Role Device = DRD
 
 ## Run
 
-From Konsole:
-
-```sh
-pkexec /usr/local/bin/steamdeckcontroller
-```
-
-Or launch the installed desktop entry:
+Launch the installed desktop entry:
 
 ```text
 Steam Deck Controller Passthrough
 ```
 
-The launcher uses `pkexec`, so it should ask for authentication. This is a temporary compromise until the project has a privileged daemon and unprivileged Steam frontend.
+The launcher runs the frontend as the normal user. The daemon must already be running through systemd.
 
 ## Add To Steam
 
@@ -69,9 +72,14 @@ In Desktop Mode:
 1. Open Steam.
 2. Choose **Add a Non-Steam Game**.
 3. Add the installed desktop launcher or `/usr/local/bin/steamdeckcontroller`.
-4. If adding the binary directly, set the launch command to use `pkexec`.
+4. Do not use `sudo` or `pkexec` for the frontend.
 
-Running GUI programs through `pkexec` from Gaming Mode can be awkward. If authentication or display access fails there, launch from Desktop Mode or implement the daemon/frontend split described in [Privileged daemon and Steam frontend](daemon-frontend-split.md).
+If the frontend cannot connect, check:
+
+```sh
+systemctl status steamdeckcontroller.service
+ls -l /run/steamdeckcontroller/control.sock
+```
 
 ## Uninstall
 
@@ -82,8 +90,10 @@ sudo packaging/uninstall-steamos.sh
 This removes:
 
 - `/usr/local/bin/steamdeckcontroller`
+- `/usr/local/bin/steamdeckcontrollerd`
 - `/usr/local/lib/steamdeckcontroller`
 - `/etc/systemd/system/steamdeckcontroller-prepare.service`
+- `/etc/systemd/system/steamdeckcontroller.service`
 - `/usr/local/share/applications/steamdeckcontroller.desktop`
 
 Stop capture from the app before uninstalling.

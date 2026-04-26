@@ -1,5 +1,7 @@
 #pragma once
 
+#include "control_runtime.hpp"
+
 #include <atomic>
 #include <mutex>
 #include <string>
@@ -7,13 +9,7 @@
 
 namespace sdc {
 
-struct RuntimeStatus {
-    bool running = false;
-    std::string state = "Stopped";
-    std::string details = "No capture active.";
-};
-
-class ControllerRuntime {
+class ControllerRuntime : public ControlRuntime {
 public:
     ControllerRuntime();
     ~ControllerRuntime();
@@ -21,9 +17,9 @@ public:
     ControllerRuntime(const ControllerRuntime &) = delete;
     ControllerRuntime &operator=(const ControllerRuntime &) = delete;
 
-    bool start(std::string &message);
-    bool stop(std::string &message);
-    RuntimeStatus status() const;
+    bool start(std::string &message) override;
+    bool stop(std::string &message) override;
+    RuntimeStatus status() const override;
 
 private:
     void worker_main();

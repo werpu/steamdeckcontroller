@@ -1,3 +1,4 @@
+#include "control_protocol.hpp"
 #include "controller_runtime.hpp"
 
 #include <sys/socket.h>
@@ -10,7 +11,6 @@
 #include <cstring>
 #include <filesystem>
 #include <iostream>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 
@@ -23,22 +23,6 @@ std::atomic_bool g_shutdown_requested{false};
 
 void on_signal(int) {
     g_shutdown_requested.store(true);
-}
-
-std::string sanitize_line(std::string value) {
-    while (!value.empty() && (value.back() == '\n' || value.back() == '\r')) {
-        value.pop_back();
-    }
-    return value;
-}
-
-std::string status_response(const sdc::RuntimeStatus &status) {
-    std::ostringstream out;
-    out << "STATUS " << (status.running ? "RUNNING" : "STOPPED") << ' ' << status.state;
-    if (!status.details.empty()) {
-        out << '\n' << status.details;
-    }
-    return out.str();
 }
 
 void write_all(int fd, const std::string &message) {
@@ -70,7 +54,7 @@ std::string read_command(int fd) {
     if (newline != std::string::npos) {
         command.resize(newline);
     }
-    return sanitize_line(command);
+    return sdc::sanitize_command_line(command);
 }
 
 int create_server_socket() {
@@ -103,22 +87,6 @@ int create_server_socket() {
     return fd;
 }
 
-std::string handle_command(sdc::ControllerRuntime &runtime, const std::string &command) {
-    std::string message;
-    if (command == "START") {
-        runtime.start(message);
-        return "OK " + message;
-    }
-    if (command == "STOP") {
-        runtime.stop(message);
-        return "OK " + message;
-    }
-    if (command == "STATUS") {
-        return status_response(runtime.status());
-    }
-    return "ERR Unknown command";
-}
-
 } // namespace
 
 int main() {
@@ -142,7 +110,7 @@ int main() {
             }
 
             const std::string command = read_command(client_fd);
-            const std::string response = handle_command(runtime, command);
+            const std::string response = sdc::handle_control_command(runtime, command);
             write_all(client_fd, response);
             close(client_fd);
         }

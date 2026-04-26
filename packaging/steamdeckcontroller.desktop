@@ -2,7 +2,7 @@
 Type=Application
 Name=Steam Deck Controller Passthrough
 Comment=Forward local input devices to a connected USB host
-Exec=pkexec /usr/local/bin/steamdeckcontroller
+Exec=/usr/local/bin/steamdeckcontroller
 Icon=input-gaming
 Terminal=false
 Categories=Utility;

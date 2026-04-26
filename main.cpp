@@ -1,6 +1,8 @@
 #include <gtk/gtk.h>
 
 #ifdef __linux__
+#include "input_translation.hpp"
+
 #include <linux/input.h>
 #include <sys/ioctl.h>
 #include <sys/poll.h>
@@ -233,90 +235,13 @@ int open_hidg(int index) {
     return fd;
 }
 
-std::optional<uint8_t> key_to_hid(int code) {
-    if (code >= KEY_A && code <= KEY_Z) {
-        return static_cast<uint8_t>(0x04 + code - KEY_A);
-    }
-    if (code >= KEY_1 && code <= KEY_9) {
-        return static_cast<uint8_t>(0x1e + code - KEY_1);
-    }
-    if (code == KEY_0) return 0x27;
-    switch (code) {
-        case KEY_ENTER: return 0x28;
-        case KEY_ESC: return 0x29;
-        case KEY_BACKSPACE: return 0x2a;
-        case KEY_TAB: return 0x2b;
-        case KEY_SPACE: return 0x2c;
-        case KEY_MINUS: return 0x2d;
-        case KEY_EQUAL: return 0x2e;
-        case KEY_LEFTBRACE: return 0x2f;
-        case KEY_RIGHTBRACE: return 0x30;
-        case KEY_BACKSLASH: return 0x31;
-        case KEY_SEMICOLON: return 0x33;
-        case KEY_APOSTROPHE: return 0x34;
-        case KEY_GRAVE: return 0x35;
-        case KEY_COMMA: return 0x36;
-        case KEY_DOT: return 0x37;
-        case KEY_SLASH: return 0x38;
-        case KEY_CAPSLOCK: return 0x39;
-        case KEY_F1: return 0x3a;
-        case KEY_F2: return 0x3b;
-        case KEY_F3: return 0x3c;
-        case KEY_F4: return 0x3d;
-        case KEY_F5: return 0x3e;
-        case KEY_F6: return 0x3f;
-        case KEY_F7: return 0x40;
-        case KEY_F8: return 0x41;
-        case KEY_F9: return 0x42;
-        case KEY_F10: return 0x43;
-        case KEY_F11: return 0x44;
-        case KEY_F12: return 0x45;
-        case KEY_PRINT: return 0x46;
-        case KEY_SCROLLLOCK: return 0x47;
-        case KEY_PAUSE: return 0x48;
-        case KEY_INSERT: return 0x49;
-        case KEY_HOME: return 0x4a;
-        case KEY_PAGEUP: return 0x4b;
-        case KEY_DELETE: return 0x4c;
-        case KEY_END: return 0x4d;
-        case KEY_PAGEDOWN: return 0x4e;
-        case KEY_RIGHT: return 0x4f;
-        case KEY_LEFT: return 0x50;
-        case KEY_DOWN: return 0x51;
-        case KEY_UP: return 0x52;
-        default: return std::nullopt;
-    }
-}
-
-std::optional<int> modifier_bit(int code) {
-    switch (code) {
-        case KEY_LEFTCTRL: return 0;
-        case KEY_LEFTSHIFT: return 1;
-        case KEY_LEFTALT: return 2;
-        case KEY_LEFTMETA: return 3;
-        case KEY_RIGHTCTRL: return 4;
-        case KEY_RIGHTSHIFT: return 5;
-        case KEY_RIGHTALT: return 6;
-        case KEY_RIGHTMETA: return 7;
-        default: return std::nullopt;
-    }
-}
-
 void write_report(int fd, const uint8_t *data, size_t len) {
     const ssize_t written = write(fd, data, len);
     (void)written;
 }
 
-int clamp_i8(int value) {
-    return std::max(-127, std::min(127, value));
-}
-
 int normalize_abs(const input_absinfo &info, int value) {
-    if (info.maximum <= info.minimum) {
-        return 0;
-    }
-    const double normalized = (static_cast<double>(value - info.minimum) / (info.maximum - info.minimum)) * 254.0 - 127.0;
-    return clamp_i8(static_cast<int>(normalized));
+    return sdc::normalize_abs(info.minimum, info.maximum, value);
 }
 
 std::optional<DeviceKind> classify_device(int fd) {
@@ -381,35 +306,6 @@ void release_devices(std::vector<InputDevice> &devices) {
     }
 }
 
-std::optional<int> gamepad_button_bit(int code) {
-    switch (code) {
-        case BTN_SOUTH: return 0;
-        case BTN_EAST: return 1;
-        case BTN_NORTH: return 2;
-        case BTN_WEST: return 3;
-        case BTN_TL: return 4;
-        case BTN_TR: return 5;
-        case BTN_SELECT: return 6;
-        case BTN_START: return 7;
-        case BTN_THUMBL: return 8;
-        case BTN_THUMBR: return 9;
-        case BTN_MODE: return 10;
-        default: return std::nullopt;
-    }
-}
-
-int gamepad_axis_index(int code) {
-    switch (code) {
-        case ABS_X: return 2;
-        case ABS_Y: return 3;
-        case ABS_RX: return 4;
-        case ABS_RY: return 5;
-        case ABS_Z: return 6;
-        case ABS_RZ: return 7;
-        default: return -1;
-    }
-}
-
 void worker_main() {
     try {
         set_status(true, "Preparing USB gadget", "Configuring keyboard, mouse, and generic HID gamepad endpoints.");
@@ -466,10 +362,10 @@ void worker_main() {
                             g_stop_requested.store(true);
                             continue;
                         }
-                        if (auto bit = modifier_bit(event.code)) {
+                        if (auto bit = sdc::modifier_bit(event.code)) {
                             if (event.value) keyboard_report[0] |= static_cast<uint8_t>(1U << *bit);
                             else keyboard_report[0] &= static_cast<uint8_t>(~(1U << *bit));
-                        } else if (auto usage = key_to_hid(event.code)) {
+                        } else if (auto usage = sdc::key_to_hid(event.code)) {
                             auto begin = keyboard_report.begin() + 2;
                             auto end = keyboard_report.end();
                             if (event.value) {
@@ -497,16 +393,16 @@ void worker_main() {
                             }
                         } else if (event.type == EV_REL) {
                             std::array<uint8_t, 4> report{mouse_report[0], 0, 0, 0};
-                            if (event.code == REL_X) report[1] = static_cast<uint8_t>(clamp_i8(event.value));
-                            else if (event.code == REL_Y) report[2] = static_cast<uint8_t>(clamp_i8(event.value));
-                            else if (event.code == REL_WHEEL) report[3] = static_cast<uint8_t>(clamp_i8(event.value));
+                            if (event.code == REL_X) report[1] = static_cast<uint8_t>(sdc::clamp_i8(event.value));
+                            else if (event.code == REL_Y) report[2] = static_cast<uint8_t>(sdc::clamp_i8(event.value));
+                            else if (event.code == REL_WHEEL) report[3] = static_cast<uint8_t>(sdc::clamp_i8(event.value));
                             else continue;
                             write_report(mouse_fd, report.data(), report.size());
                         }
                     } else if (device.kind == DeviceKind::Gamepad) {
                         bool changed = false;
                         if (event.type == EV_KEY) {
-                            if (auto bit = gamepad_button_bit(event.code)) {
+                            if (auto bit = sdc::gamepad_button_bit(event.code)) {
                                 const uint16_t mask = static_cast<uint16_t>(1U << *bit);
                                 uint16_t buttons = static_cast<uint16_t>(gamepad_report[0] | (gamepad_report[1] << 8));
                                 if (event.value) buttons |= mask;
@@ -516,7 +412,7 @@ void worker_main() {
                                 changed = true;
                             }
                         } else if (event.type == EV_ABS) {
-                            const int axis = gamepad_axis_index(event.code);
+                            const int axis = sdc::gamepad_axis_index(event.code);
                             auto info = device.abs_info.find(event.code);
                             if (axis >= 0 && info != device.abs_info.end()) {
                                 gamepad_report[axis] = static_cast<uint8_t>(normalize_abs(info->second, event.value));

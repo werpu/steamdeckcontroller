@@ -24,6 +24,14 @@ cmake -S . -B build
 cmake --build build
 ```
 
+If GTK 3 is not installed, CMake still builds the portable unit tests but skips the GTK application target.
+
+## Test
+
+```sh
+ctest --test-dir build --output-on-failure
+```
+
 ## Run
 
 ```sh

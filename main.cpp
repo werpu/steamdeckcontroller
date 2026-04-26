@@ -113,6 +113,41 @@ std::string read_first_udc() {
     return {};
 }
 
+std::string describe_path_state(const std::filesystem::path &path) {
+    std::ostringstream out;
+    std::error_code ec;
+    out << path << ": ";
+    if (!std::filesystem::exists(path, ec)) {
+        out << "missing";
+        if (ec) {
+            out << " (" << ec.message() << ")";
+        }
+        return out.str();
+    }
+
+    const auto status = std::filesystem::status(path, ec);
+    if (ec) {
+        out << "status error (" << ec.message() << ")";
+        return out.str();
+    }
+
+    out << (std::filesystem::is_directory(status) ? "directory" : "not directory");
+    out << ", permissions " << std::oct << static_cast<unsigned>((status.permissions() & std::filesystem::perms::all));
+    return out.str();
+}
+
+void ensure_directory(const std::filesystem::path &path) {
+    std::error_code ec;
+    std::filesystem::create_directories(path, ec);
+    if (ec) {
+        std::ostringstream message;
+        message << "Cannot create " << path << ": " << ec.message()
+                << "\n" << describe_path_state(path.parent_path())
+                << "\nCheck that ConfigFS is mounted and that the process is really running as uid 0.";
+        throw std::runtime_error(message.str());
+    }
+}
+
 void write_text(const std::filesystem::path &path, const std::string &value) {
     std::ofstream out(path);
     if (!out) {
@@ -151,7 +186,7 @@ void setup_gadget() {
         throw std::runtime_error("No USB device controller found in /sys/class/udc.");
     }
 
-    std::filesystem::create_directories(kGadgetPath);
+    ensure_directory(kGadgetPath);
     const std::filesystem::path gadget(kGadgetPath);
 
     write_text(gadget / "idVendor", "0x1d6b");
@@ -159,12 +194,12 @@ void setup_gadget() {
     write_text(gadget / "bcdDevice", "0x0100");
     write_text(gadget / "bcdUSB", "0x0200");
 
-    std::filesystem::create_directories(gadget / "strings/0x409");
+    ensure_directory(gadget / "strings/0x409");
     write_text(gadget / "strings/0x409/serialnumber", "sdc-0001");
     write_text(gadget / "strings/0x409/manufacturer", "SteamDeckController");
     write_text(gadget / "strings/0x409/product", "Input Passthrough Xbox-style HID");
 
-    std::filesystem::create_directories(gadget / "configs/c.1/strings/0x409");
+    ensure_directory(gadget / "configs/c.1/strings/0x409");
     write_text(gadget / "configs/c.1/MaxPower", "250");
     write_text(gadget / "configs/c.1/strings/0x409/configuration", "HID keyboard mouse Xbox-style gamepad");
 
@@ -210,7 +245,7 @@ void setup_gadget() {
 
     for (const auto &fn : functions) {
         const auto dir = gadget / "functions" / fn.name;
-        std::filesystem::create_directories(dir);
+        ensure_directory(dir);
         write_text(dir / "protocol", std::to_string(fn.protocol));
         write_text(dir / "subclass", std::to_string(fn.subclass));
         write_text(dir / "report_length", std::to_string(fn.report_len));

@@ -38,6 +38,8 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
+See [Testing](testing.md) for what each unit test target covers.
+
 On SteamOS, make sure GTK development files are installed if the GUI target is not built.
 
 ## 3. Install

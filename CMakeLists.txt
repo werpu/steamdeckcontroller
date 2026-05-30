@@ -18,8 +18,10 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
     install(TARGETS steamdeckcontrollerd RUNTIME DESTINATION bin)
 endif ()
 
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(GTK3 gtk+-3.0)
+find_package(PkgConfig)
+if (PkgConfig_FOUND)
+    pkg_check_modules(GTK3 gtk+-3.0)
+endif ()
 
 if (GTK3_FOUND)
     add_executable(steamdeckcontroller main.cpp)

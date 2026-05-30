@@ -2,7 +2,7 @@
 
 The project has CTest-based unit tests that run without Steam Deck hardware.
 
-Tests run automatically at the end of each build script:
+Tests run automatically at the end of each build script.
 
 **On the Steam Deck or any Linux x86_64 machine:**
 
@@ -10,13 +10,21 @@ Tests run automatically at the end of each build script:
 bin/build_under_x86.sh
 ```
 
-**On macOS — tests run inside the Docker container:**
+**On macOS — native build, no Docker needed:**
+
+```sh
+bin/build_for_macos.sh
+```
+
+Compiles and runs the portable unit tests directly with Apple Clang. The Linux daemon and GTK frontend are skipped (they require Linux headers). Build output goes to `build-macos/`.
+
+**On macOS — full cross-compile including tests inside Docker:**
 
 ```sh
 bin/build_under_macos.sh
 ```
 
-To run tests standalone on Linux after a build (build directory is `build/`):
+To run tests standalone on Linux after a build:
 
 ```sh
 ctest --test-dir build --output-on-failure

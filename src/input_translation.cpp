@@ -181,6 +181,85 @@ std::optional<size_t> xbox_axis_offset(int code) {
     }
 }
 
+// Xbox360Report — 20-byte wire protocol
+// bytes[0]=0x00 (type), bytes[1]=0x14 (length=20)
+// bytes[2]: DPAD_UP(0) DPAD_DOWN(1) DPAD_LEFT(2) DPAD_RIGHT(3) START(4) BACK(5) THUMBL(6) THUMBR(7)
+// bytes[3]: LB(0) RB(1) GUIDE(2) -(3) A(4) B(5) X(6) Y(7)
+// bytes[4]: left trigger, bytes[5]: right trigger
+// bytes[6-7]: left stick X, bytes[8-9]: left stick Y
+// bytes[10-11]: right stick X, bytes[12-13]: right stick Y
+// bytes[14-19]: reserved
+
+Xbox360Report::Xbox360Report() {
+    bytes[0] = 0x00; // input report type
+    bytes[1] = 0x14; // report length = 20
+}
+
+void Xbox360Report::set_button(int bit, bool pressed) {
+    int byte_idx = -1;
+    int byte_bit = -1;
+    switch (bit) {
+        case 0:  byte_idx = 3; byte_bit = 4; break; // A
+        case 1:  byte_idx = 3; byte_bit = 5; break; // B
+        case 2:  byte_idx = 3; byte_bit = 6; break; // X
+        case 3:  byte_idx = 3; byte_bit = 7; break; // Y
+        case 4:  byte_idx = 3; byte_bit = 0; break; // LB
+        case 5:  byte_idx = 3; byte_bit = 1; break; // RB
+        case 6:  byte_idx = 2; byte_bit = 5; break; // BACK
+        case 7:  byte_idx = 2; byte_bit = 4; break; // START
+        case 8:  byte_idx = 3; byte_bit = 2; break; // GUIDE
+        case 9:  byte_idx = 2; byte_bit = 6; break; // THUMBL
+        case 10: byte_idx = 2; byte_bit = 7; break; // THUMBR
+        case 12: byte_idx = 2; byte_bit = 0; break; // DPAD_UP
+        case 13: byte_idx = 2; byte_bit = 1; break; // DPAD_DOWN
+        case 14: byte_idx = 2; byte_bit = 2; break; // DPAD_LEFT
+        case 15: byte_idx = 2; byte_bit = 3; break; // DPAD_RIGHT
+        default: return;
+    }
+    if (pressed) bytes[byte_idx] |= static_cast<uint8_t>(1 << byte_bit);
+    else         bytes[byte_idx] &= static_cast<uint8_t>(~(1 << byte_bit));
+}
+
+void Xbox360Report::set_hat(int x, int y) {
+    bytes[2] &= 0xF0; // clear dpad bits (lower nibble)
+    if (y < 0) bytes[2] |= 0x01; // DPAD_UP
+    if (y > 0) bytes[2] |= 0x02; // DPAD_DOWN
+    if (x < 0) bytes[2] |= 0x04; // DPAD_LEFT
+    if (x > 0) bytes[2] |= 0x08; // DPAD_RIGHT
+}
+
+void Xbox360Report::set_trigger(size_t offset, uint8_t value) {
+    if (offset < bytes.size()) {
+        bytes[offset] = value;
+    }
+}
+
+void Xbox360Report::set_axis(size_t offset, int16_t value) {
+    if (offset + 1 >= bytes.size()) {
+        return;
+    }
+    bytes[offset]     = static_cast<uint8_t>(value & 0xff);
+    bytes[offset + 1] = static_cast<uint8_t>((value >> 8) & 0xff);
+}
+
+std::optional<size_t> xbox360_trigger_offset(int code) {
+    switch (code) {
+        case evdev::ABS_Z:  return 4; // left trigger
+        case evdev::ABS_RZ: return 5; // right trigger
+        default: return std::nullopt;
+    }
+}
+
+std::optional<size_t> xbox360_axis_offset(int code) {
+    switch (code) {
+        case evdev::ABS_X:  return 6;  // left stick X
+        case evdev::ABS_Y:  return 8;  // left stick Y
+        case evdev::ABS_RX: return 10; // right stick X
+        case evdev::ABS_RY: return 12; // right stick Y
+        default: return std::nullopt;
+    }
+}
+
 int clamp_i8(int value) {
     return std::max(-127, std::min(127, value));
 }

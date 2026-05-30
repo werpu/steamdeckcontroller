@@ -9,10 +9,13 @@ DIST_DIR="$REPO_DIR/dist"
 cd "$REPO_DIR"
 
 echo "==> Configuring..."
-cmake -S . -B "$BUILD_DIR"
+cmake -S . -B "$BUILD_DIR" -DBUILD_TESTING=ON
 
 echo "==> Building..."
 cmake --build "$BUILD_DIR"
+
+echo "==> Running tests..."
+ctest --test-dir "$BUILD_DIR" --output-on-failure
 
 echo "==> Copying binaries to dist/..."
 mkdir -p "$DIST_DIR"

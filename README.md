@@ -40,9 +40,13 @@ If GTK 3 is not installed, CMake still builds the portable unit tests but skips 
 
 ## Test
 
+Tests run automatically at the end of each build script. On Linux, to run them standalone:
+
 ```sh
 ctest --test-dir build --output-on-failure
 ```
+
+On macOS tests run inside Docker — just run `bin/build_under_macos.sh`.
 
 ## Run
 

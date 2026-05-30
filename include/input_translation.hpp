@@ -126,11 +126,33 @@ struct XboxHidReport {
     void set_axis(size_t offset, int16_t value);
 };
 
+// 13-byte generic HID gamepad report (kept for tests and reference)
+// 20-byte Xbox 360 wire-protocol report (used with the FunctionFS gadget)
+struct Xbox360Report {
+    static constexpr size_t size = 20;
+    std::array<uint8_t, size> bytes{};
+    Xbox360Report();
+    // bit: same abstract numbers returned by xbox_button_bit()
+    void set_button(int bit, bool pressed);
+    // x/y: raw ABS_HAT0X / ABS_HAT0Y sign (-1, 0, +1)
+    void set_hat(int x, int y);
+    // offset: byte index (use xbox360_trigger_offset / xbox360_axis_offset)
+    void set_trigger(size_t offset, uint8_t value);
+    void set_axis(size_t offset, int16_t value);
+};
+
 std::optional<uint8_t> key_to_hid(int code);
 std::optional<int> modifier_bit(int code);
 std::optional<int> xbox_button_bit(int code);
+
+// Offsets for XboxHidReport (13-byte generic HID)
 std::optional<size_t> xbox_trigger_offset(int code);
 std::optional<size_t> xbox_axis_offset(int code);
+
+// Offsets for Xbox360Report (20-byte wire format)
+std::optional<size_t> xbox360_trigger_offset(int code);
+std::optional<size_t> xbox360_axis_offset(int code);
+
 int clamp_i8(int value);
 int normalize_abs(int minimum, int maximum, int value);
 uint8_t normalize_abs_u8(int minimum, int maximum, int value);

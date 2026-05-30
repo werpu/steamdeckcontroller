@@ -34,6 +34,11 @@ This must print at least one controller name.
 
 ```sh
 bin/build_under_x86.sh
+```
+
+Tests run automatically. To run them standalone after a build:
+
+```sh
 ctest --test-dir build --output-on-failure
 ```
 
@@ -43,7 +48,7 @@ ctest --test-dir build --output-on-failure
 bin/build_under_macos.sh
 ```
 
-See [Cross-building on macOS](cross-build-macos.md) for the macOS setup (Docker + Colima).
+Tests run inside the Docker container as part of the build. See [Cross-building on macOS](cross-build-macos.md) for setup details.
 
 On SteamOS, make sure GTK development files are installed if the GUI target is not built.
 

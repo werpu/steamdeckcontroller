@@ -1,4 +1,4 @@
-FROM ubuntu:24.04
+ FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /src
 COPY . .
 
-RUN cmake -S . -B /build -G Ninja \
+RUN cmake -S . -B /build -G Ninja -DBUILD_TESTING=ON \
  && cmake --build /build
 
 # Binaries are at /build/steamdeckcontrollerd and /build/steamdeckcontroller

@@ -1,12 +1,24 @@
 # Testing
 
-The project has normal CTest-based unit tests that run without Steam Deck hardware.
+The project has CTest-based unit tests that run without Steam Deck hardware.
 
-Run:
+Tests run automatically at the end of each build script:
+
+**On the Steam Deck or any Linux x86_64 machine:**
 
 ```sh
-cmake -S . -B build
-cmake --build build
+bin/build_under_x86.sh
+```
+
+**On macOS — tests run inside the Docker container:**
+
+```sh
+bin/build_under_macos.sh
+```
+
+To run tests standalone on Linux after a build (build directory is `build/`):
+
+```sh
 ctest --test-dir build --output-on-failure
 ```
 

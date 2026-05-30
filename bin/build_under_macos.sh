@@ -29,6 +29,10 @@ docker build \
     -t "$IMAGE_TAG" \
     .
 
+echo "==> Running tests inside Docker..."
+docker run --rm --platform linux/amd64 "$IMAGE_TAG" bash -c \
+    '/build/input_translation_tests && /build/control_protocol_tests'
+
 echo "==> Extracting binaries to dist/..."
 mkdir -p "$DIST_DIR"
 

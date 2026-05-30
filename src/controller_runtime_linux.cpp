@@ -333,8 +333,18 @@ bool ControllerRuntime::start(std::string &message) {
 bool ControllerRuntime::stop(std::string &message) {
     stop_requested_.store(true);
     if (worker_.joinable()) {
-        set_status(true, "Stopping", "Releasing grabbed input devices.");
+        if (status().running) {
+            set_status(true, "Stopping", "Releasing grabbed input devices.");
+        }
         worker_.join();
+    }
+    {
+        std::lock_guard<std::mutex> lock(status_mutex_);
+        status_.running = false;
+        if (status_.state != "Error") {
+            status_.state = "Stopped";
+            status_.details = "No capture active.";
+        }
     }
     message = "Stopped";
     return true;

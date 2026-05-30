@@ -118,6 +118,89 @@ void xbox_report_writes_expected_bytes() {
     expect_eq(report.bytes[6], 128, "axis high byte");
 }
 
+void hat_covers_all_eight_directions() {
+    sdc::XboxHidReport r;
+    r.set_hat(0, -1); expect_eq(r.bytes[2], 0, "hat north");
+    r.set_hat(1, -1); expect_eq(r.bytes[2], 1, "hat northeast");
+    r.set_hat(1,  0); expect_eq(r.bytes[2], 2, "hat east");
+    r.set_hat(1,  1); expect_eq(r.bytes[2], 3, "hat southeast");
+    r.set_hat(0,  1); expect_eq(r.bytes[2], 4, "hat south");
+    r.set_hat(-1, 1); expect_eq(r.bytes[2], 5, "hat southwest");
+    r.set_hat(-1, 0); expect_eq(r.bytes[2], 6, "hat west");
+    r.set_hat(-1,-1); expect_eq(r.bytes[2], 7, "hat northwest");
+    r.set_hat(0,  0); expect_eq(r.bytes[2], 8, "hat neutral");
+}
+
+void buttons_span_both_report_bytes() {
+    sdc::XboxHidReport r;
+    // bits 8-10 land in bytes[1]
+    r.set_button(8, true);
+    expect_eq(r.bytes[1], 0x01, "guide button in high byte");
+    r.set_button(9, true);
+    expect_eq(r.bytes[1], 0x03, "thumbL added to high byte");
+    r.set_button(8, false);
+    expect_eq(r.bytes[1], 0x02, "guide released from high byte");
+    // bytes[0] must be unaffected
+    expect_eq(r.bytes[0], 0x00, "low byte unaffected by high-byte buttons");
+    // buttons 12-15 (d-pad bits)
+    r.set_button(12, true);
+    expect_eq((r.bytes[1] >> 4) & 1, 1, "dpad-up bit 12 in high byte");
+    r.set_button(15, true);
+    expect_eq((r.bytes[1] >> 7) & 1, 1, "dpad-right bit 15 in high byte");
+}
+
+void xbox_report_full_state_matches_expected_bytes() {
+    sdc::XboxHidReport r;
+
+    // All face buttons + start + select pressed: bits 0-3, 6, 7
+    for (int b : {0, 1, 2, 3, 6, 7}) r.set_button(b, true);
+    expect_eq(r.bytes[0], 0b11001111, "face+start+select in low byte");
+    expect_eq(r.bytes[1], 0x00,       "high byte still clear");
+
+    // Hat pointing east
+    r.set_hat(1, 0);
+    expect_eq(r.bytes[2], 2, "east hat in byte 2");
+
+    // Left trigger full, right trigger half
+    r.set_trigger(3, 255);
+    r.set_trigger(4, 128);
+    expect_eq(r.bytes[3], 255, "left trigger");
+    expect_eq(r.bytes[4], 128, "right trigger");
+
+    // Left stick: max-left, max-up  (-32768, -32768)
+    r.set_axis(5, -32768);
+    r.set_axis(7, -32768);
+    expect_eq(r.bytes[5], 0x00, "left-x low byte");
+    expect_eq(r.bytes[6], 0x80, "left-x high byte");
+    expect_eq(r.bytes[7], 0x00, "left-y low byte");
+    expect_eq(r.bytes[8], 0x80, "left-y high byte");
+
+    // Right stick: max-right, max-down (32767, 32767)
+    r.set_axis(9,  32767);
+    r.set_axis(11, 32767);
+    expect_eq(r.bytes[9],  0xff, "right-x low byte");
+    expect_eq(r.bytes[10], 0x7f, "right-x high byte");
+    expect_eq(r.bytes[11], 0xff, "right-y low byte");
+    expect_eq(r.bytes[12], 0x7f, "right-y high byte");
+
+    // Total report size
+    expect_eq(r.bytes.size(), sdc::XboxHidReport::size, "report is exactly 13 bytes");
+}
+
+void axis_normalization_midpoint_and_positive() {
+    // Midpoint should be near zero for i16
+    const auto mid = sdc::normalize_abs_i16(0, 65535, 32767);
+    expect_true(mid >= -1 && mid <= 1, "stick midpoint maps near zero (i16)");
+
+    // Positive maximum
+    expect_eq(sdc::normalize_abs_i16(0, 65535, 65535), static_cast<int16_t>(32767),
+              "stick maximum maps to 32767 (i16)");
+
+    // Trigger midpoint
+    const auto tmid = static_cast<int>(sdc::normalize_abs_u8(0, 255, 127));
+    expect_true(tmid >= 126 && tmid <= 128, "trigger midpoint maps near 127 (u8)");
+}
+
 } // namespace
 
 int main() {
@@ -129,6 +212,10 @@ int main() {
     absolute_axes_normalize_to_signed_hid_range();
     mouse_relative_values_clamp_to_hid_range();
     xbox_report_writes_expected_bytes();
+    hat_covers_all_eight_directions();
+    buttons_span_both_report_bytes();
+    xbox_report_full_state_matches_expected_bytes();
+    axis_normalization_midpoint_and_positive();
 
     if (failures != 0) {
         std::cerr << failures << " test expectation(s) failed\n";

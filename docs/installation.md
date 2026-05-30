@@ -1,48 +1,62 @@
 # Installation On SteamOS
 
-The application is split into a root daemon and a normal user GTK frontend. The installer makes that setup repeatable on SteamOS.
+The application is split into a privileged root daemon and an unprivileged GTK frontend. The self-extracting installer handles both in one step.
 
-The installer does four things:
+Files are installed to locations that survive SteamOS system updates:
 
-1. installs the compiled frontend to `/usr/local/bin/steamdeckcontroller`
-2. installs the compiled daemon to `/usr/local/bin/steamdeckcontrollerd`
-3. installs a helper script that loads `libcomposite` and checks ConfigFS/UDC state
-4. installs a systemd oneshot preparation service
-5. installs a systemd daemon service
-6. installs a desktop launcher for the unprivileged frontend
+| File | Location |
+|---|---|
+| `steamdeckcontrollerd` | `~/.local/share/steamdeckcontroller/` |
+| `prepare-gadget.sh` | `~/.local/share/steamdeckcontroller/` |
+| `steamdeckcontroller` | `~/.local/bin/` |
+| `steamdeckcontroller-prepare.service` | `/etc/systemd/system/` |
+| `steamdeckcontroller.service` | `/etc/systemd/system/` |
+
+The daemon runs as root via systemd. The frontend binary is owned by and runs as the normal `deck` user.
 
 ## Build First
 
-From the repository:
+**On the Steam Deck or any Linux x86_64 machine:**
 
 ```sh
-cmake -S . -B build
-cmake --build build
+bin/build_under_x86.sh
 ```
 
-The GTK target must exist. If CMake says GTK is missing, install GTK development packages first.
+**On macOS (cross-compile via Docker):**
+
+```sh
+bin/build_under_macos.sh
+```
+
+Both build scripts produce `steamdeckcontroller-install.sh` and `steamdeckcontroller-uninstall.sh` in the repository root at the end of the build.
+
+See [Cross-building on macOS](cross-build-macos.md) for the full macOS setup including Docker and Colima.
 
 ## Install
 
+Transfer the installer to the Steam Deck:
+
 ```sh
-sudo packaging/install-steamos.sh --build-dir build
+scp dist/steamdeckcontroller-install.sh dist/steamdeckcontroller-uninstall.sh deck@steamdeck.local:~/
 ```
 
-Then run the preparation service once:
+On the Steam Deck, run via `sudo` from the `deck` account:
+
+```sh
+sudo ./steamdeckcontroller-install.sh
+```
+
+Running via `sudo` (not directly as root) is required so the installer can identify your home directory.
+
+Then start the services:
 
 ```sh
 sudo systemctl start steamdeckcontroller-prepare.service
-systemctl status steamdeckcontroller-prepare.service
-```
-
-Start the daemon:
-
-```sh
-sudo systemctl enable --now steamdeckcontroller.service
+sudo systemctl start steamdeckcontroller.service
 systemctl status steamdeckcontroller.service
 ```
 
-The service checks:
+The preparation service checks:
 
 - `libcomposite` can be loaded
 - ConfigFS is mounted at `/sys/kernel/config`
@@ -57,13 +71,19 @@ Advanced > USB Configuration > USB Dual Role Device = DRD
 
 ## Run
 
-Launch the installed desktop entry:
+Make sure `~/.local/bin` is on your `PATH`. Add to `~/.bash_profile` or `~/.profile` if it is not:
 
-```text
-Steam Deck Controller Passthrough
+```sh
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
-The launcher runs the frontend as the normal user. The daemon must already be running through systemd.
+Launch the frontend:
+
+```sh
+steamdeckcontroller
+```
+
+The daemon must already be running through systemd. The frontend runs as the normal user and only sends `START`, `STOP`, and `STATUS` commands over the Unix socket.
 
 ## Add To Steam
 
@@ -71,10 +91,10 @@ In Desktop Mode:
 
 1. Open Steam.
 2. Choose **Add a Non-Steam Game**.
-3. Add the installed desktop launcher or `/usr/local/bin/steamdeckcontroller`.
-4. Do not use `sudo` or `pkexec` for the frontend.
+3. Point it at `~/.local/bin/steamdeckcontroller`.
+4. Do not use `sudo` or `pkexec` — the frontend is intentionally unprivileged.
 
-If the frontend cannot connect, check:
+If the frontend cannot connect to the daemon, check:
 
 ```sh
 systemctl status steamdeckcontroller.service
@@ -84,29 +104,25 @@ ls -l /run/steamdeckcontroller/control.sock
 ## Uninstall
 
 ```sh
-sudo packaging/uninstall-steamos.sh
+sudo ./steamdeckcontroller-uninstall.sh
 ```
 
-This removes:
+This stops and disables both services, removes the service files from `/etc/systemd/system/`, and deletes:
 
-- `/usr/local/bin/steamdeckcontroller`
-- `/usr/local/bin/steamdeckcontrollerd`
-- `/usr/local/lib/steamdeckcontroller`
-- `/etc/systemd/system/steamdeckcontroller-prepare.service`
-- `/etc/systemd/system/steamdeckcontroller.service`
-- `/usr/local/share/applications/steamdeckcontroller.desktop`
+- `~/.local/share/steamdeckcontroller/`
+- `~/.local/bin/steamdeckcontroller`
 
 Stop capture from the app before uninstalling.
 
-## Why Not Make Everything Rootless?
+## Why Install to the Home Directory?
 
-The app needs privileged access to kernel interfaces:
+SteamOS uses an A/B partition scheme where system updates replace the root filesystem. Anything written to `/usr` or `/usr/local` is wiped on each update. The home partition (`/home`) is on a separate partition and is never touched by updates. Installing to `~/.local/` is the correct approach for software that needs to survive across SteamOS updates.
 
-```text
-/sys/kernel/config/usb_gadget
-/dev/hidg*
-/dev/input/event*
-EVIOCGRAB
+The systemd service files in `/etc/systemd/system/` are on an overlay that persists across minor updates. After a major SteamOS update you may need to re-enable the services:
+
+```sh
+sudo systemctl enable steamdeckcontroller-prepare.service
+sudo systemctl enable steamdeckcontroller.service
 ```
 
-Those should not be writable by a normal Steam session. The proper rootless user experience is a small root daemon plus a normal user frontend.
+The binaries themselves in `~/.local/` are unaffected.

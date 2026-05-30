@@ -1,7 +1,28 @@
-#!/usr/bin/env sh
-set -eu
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+    echo "Usage: $0 [--prefix /usr/local]"
+}
 
 PREFIX="/usr/local"
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --prefix)
+            PREFIX="$2"
+            shift 2
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            usage >&2
+            exit 1
+            ;;
+    esac
+done
 
 if [ "$(id -u)" -ne 0 ]; then
     echo "Run as root: sudo $0" >&2
@@ -19,5 +40,5 @@ rm -f "$PREFIX/bin/steamdeckcontrollerd"
 rm -rf "$PREFIX/lib/steamdeckcontroller"
 rm -f /usr/local/share/applications/steamdeckcontroller.desktop
 
-echo "Removed Steam Deck Controller Passthrough installation files."
-echo "Any active USB gadget created by a still-running app must be stopped from the app first."
+echo "Removed Steam Deck Controller Passthrough installation."
+echo "Any active USB gadget must be stopped from the app before the kernel module can be unloaded."

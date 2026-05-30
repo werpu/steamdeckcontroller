@@ -19,10 +19,22 @@ sudo apt install build-essential cmake pkg-config libgtk-3-dev
 
 ## Build
 
+**On Linux x86_64 / Steam Deck:**
+
 ```sh
-cmake -S . -B build
-cmake --build build
+bin/build_under_x86.sh
 ```
+
+**On macOS (cross-compile via Docker + Colima):**
+
+```sh
+brew install docker colima
+colima start
+bin/build_under_macos.sh
+```
+
+See [Cross-building on macOS](docs/cross-build-macos.md) for the full walkthrough.
+
 
 If GTK 3 is not installed, CMake still builds the portable unit tests but skips the GTK application target.
 
@@ -58,4 +70,5 @@ This is still not a true Xbox 360/XInput USB device. Real wired Xbox controllers
 - [Setup guide](docs/setup.md)
 - [Testing](docs/testing.md)
 - [Installation on SteamOS](docs/installation.md)
+- [Cross-building on macOS](docs/cross-build-macos.md)
 - [Privileged daemon and Steam frontend](docs/daemon-frontend-split.md)

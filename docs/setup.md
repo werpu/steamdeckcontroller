@@ -30,15 +30,20 @@ This must print at least one controller name.
 
 ## 2. Build
 
-From the repository:
+**On the Steam Deck or any Linux x86_64 machine:**
 
 ```sh
-cmake -S . -B build
-cmake --build build
+bin/build_under_x86.sh
 ctest --test-dir build --output-on-failure
 ```
 
-See [Testing](testing.md) for what each unit test target covers.
+**On macOS (cross-compile via Docker):**
+
+```sh
+bin/build_under_macos.sh
+```
+
+See [Cross-building on macOS](cross-build-macos.md) for the macOS setup (Docker + Colima).
 
 On SteamOS, make sure GTK development files are installed if the GUI target is not built.
 
@@ -47,7 +52,7 @@ On SteamOS, make sure GTK development files are installed if the GUI target is n
 Run:
 
 ```sh
-sudo packaging/install-steamos.sh --build-dir build
+sudo bin/install-steamos.sh --build-dir dist
 ```
 
 The installer places:
@@ -171,5 +176,5 @@ journalctl -u steamdeckcontroller-prepare.service -f
 ## 9. Uninstall
 
 ```sh
-sudo packaging/uninstall-steamos.sh
+sudo bin/uninstall-steamos.sh
 ```

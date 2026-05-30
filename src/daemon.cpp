@@ -4,6 +4,8 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/un.h>
+#include <grp.h>
+#include <pwd.h>
 #include <unistd.h>
 
 #include <atomic>
@@ -16,8 +18,9 @@
 
 namespace {
 
-constexpr const char *kSocketDir = "/run/steamdeckcontroller";
-constexpr const char *kSocketPath = "/run/steamdeckcontroller/control.sock";
+constexpr const char *kSocketDir   = "/run/steamdeckcontroller";
+constexpr const char *kSocketPath  = "/run/steamdeckcontroller/control.sock";
+constexpr const char *kSocketGroup = "steamdeckctl";
 
 std::atomic_bool g_shutdown_requested{false};
 
@@ -57,6 +60,34 @@ std::string read_command(int fd) {
     return sdc::sanitize_command_line(command);
 }
 
+// Resolve the gid for kSocketGroup; returns -1 if the group does not exist.
+gid_t resolve_socket_group() {
+    const struct group *grp = getgrnam(kSocketGroup);
+    return grp ? grp->gr_gid : static_cast<gid_t>(-1);
+}
+
+// Returns true if uid is allowed to send commands to the daemon.
+// Accepts root (uid 0) and any account that is a member of kSocketGroup.
+bool is_permitted_peer(uid_t uid) {
+    if (uid == 0) return true;
+
+    const struct passwd *pw = getpwuid(uid);
+    if (!pw) return false;
+
+    const struct group *grp = getgrnam(kSocketGroup);
+    if (!grp) return false;
+
+    // Primary group match
+    if (pw->pw_gid == grp->gr_gid) return true;
+
+    // Supplementary group member list
+    for (char **member = grp->gr_mem; *member != nullptr; ++member) {
+        if (std::strcmp(*member, pw->pw_name) == 0) return true;
+    }
+
+    return false;
+}
+
 int create_server_socket() {
     std::filesystem::create_directories(kSocketDir);
     chmod(kSocketDir, 0755);
@@ -76,7 +107,22 @@ int create_server_socket() {
         close(fd);
         throw std::runtime_error("bind failed: " + error);
     }
-    chmod(kSocketPath, 0666);
+
+    // Restrict socket access to the steamdeckctl group (mode 0660).
+    // If the group does not exist fall back to 0600 (root-only) rather than
+    // 0666 (world-writable), so rogue processes cannot reach the daemon.
+    const gid_t gid = resolve_socket_group();
+    if (gid != static_cast<gid_t>(-1)) {
+        chown(kSocketPath, 0, gid);
+        chmod(kSocketPath, 0660);
+    } else {
+        std::cerr << "steamdeckcontrollerd: group '" << kSocketGroup
+                  << "' not found — socket restricted to root (0600).\n"
+                  << "Create the group and add your user: "
+                  << "groupadd " << kSocketGroup
+                  << " && usermod -aG " << kSocketGroup << " $USER\n";
+        chmod(kSocketPath, 0600);
+    }
 
     if (listen(fd, 8) < 0) {
         const std::string error = std::strerror(errno);
@@ -107,6 +153,22 @@ int main() {
                     continue;
                 }
                 throw std::runtime_error(std::string("accept failed: ") + std::strerror(errno));
+            }
+
+            // Verify the connecting process's credentials before reading anything.
+            struct ucred cred{};
+            socklen_t cred_len = sizeof(cred);
+            if (getsockopt(client_fd, SOL_SOCKET, SO_PEERCRED, &cred, &cred_len) < 0) {
+                std::cerr << "steamdeckcontrollerd: SO_PEERCRED failed: "
+                          << std::strerror(errno) << '\n';
+                close(client_fd);
+                continue;
+            }
+            if (!is_permitted_peer(cred.uid)) {
+                std::cerr << "steamdeckcontrollerd: rejected connection from uid="
+                          << cred.uid << " pid=" << cred.pid << '\n';
+                close(client_fd);
+                continue;
             }
 
             const std::string command = read_command(client_fd);

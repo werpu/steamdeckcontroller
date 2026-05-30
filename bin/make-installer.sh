@@ -71,6 +71,19 @@ USER_BIN="$USER_HOME/.local/bin"
 
 echo "==> Installing for user '$REAL_USER' (home: $USER_HOME)"
 
+# Create the steamdeckctl group and add the user to it so they can reach the
+# daemon socket (which is 0660 root:steamdeckctl).
+if ! getent group steamdeckctl >/dev/null 2>&1; then
+    groupadd --system steamdeckctl
+    echo "  Created group: steamdeckctl"
+fi
+NEEDS_REBOOT=false
+if ! id -nG "$REAL_USER" | tr ' ' '\n' | grep -qx steamdeckctl; then
+    usermod -aG steamdeckctl "$REAL_USER"
+    echo "  Added $REAL_USER to group steamdeckctl"
+    NEEDS_REBOOT=true
+fi
+
 # Extract payload
 TMPDIR_EXTRACT=$(mktemp -d)
 trap 'rm -rf "$TMPDIR_EXTRACT"' EXIT
@@ -139,13 +152,25 @@ systemctl enable steamdeckcontroller.service
 echo ""
 echo "Done. Services enabled."
 echo ""
-echo "Start now with:"
-echo "  sudo systemctl start steamdeckcontroller-prepare.service"
-echo "  sudo systemctl start steamdeckcontroller.service"
-echo ""
 echo "Make sure $USER_BIN is on PATH for the $REAL_USER account."
 echo "Add to ~/.bash_profile or ~/.profile if needed:"
 echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
+
+if [ "$NEEDS_REBOOT" = true ]; then
+    echo ""
+    echo "A reboot is required for the group membership to take effect."
+    echo "Rebooting in 10 seconds — press Ctrl+C to cancel."
+    for i in 10 9 8 7 6 5 4 3 2 1; do
+        printf "  %d...\n" "$i"
+        sleep 1
+    done
+    reboot
+else
+    echo ""
+    echo "Start now with:"
+    echo "  sudo systemctl start steamdeckcontroller-prepare.service"
+    echo "  sudo systemctl start steamdeckcontroller.service"
+fi
 
 exit 0
 __PAYLOAD__

@@ -51,6 +51,16 @@ if [ ! -x "$DAEMON" ]; then
     exit 1
 fi
 
+if ! getent group steamdeckctl >/dev/null 2>&1; then
+    groupadd --system steamdeckctl
+    echo "Created group: steamdeckctl"
+fi
+CALLING_USER="${SUDO_USER:-}"
+if [ -n "$CALLING_USER" ] && [ "$CALLING_USER" != "root" ]; then
+    usermod -aG steamdeckctl "$CALLING_USER"
+    echo "Added $CALLING_USER to group steamdeckctl (re-login required)."
+fi
+
 install -d "$PREFIX/bin"
 install -m 0755 "$BINARY" "$PREFIX/bin/steamdeckcontroller"
 install -m 0755 "$DAEMON" "$PREFIX/bin/steamdeckcontrollerd"

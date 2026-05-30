@@ -58,6 +58,15 @@ install -d /etc/systemd/system
 install -m 0644 "$PKG_DIR/steamdeckcontroller-prepare.service" /etc/systemd/system/steamdeckcontroller-prepare.service
 install -m 0644 "$PKG_DIR/steamdeckcontroller.service" /etc/systemd/system/steamdeckcontroller.service
 
+if ! getent group steamdeckctl >/dev/null 2>&1; then
+    groupadd --system steamdeckctl
+fi
+CALLING_USER="${SUDO_USER:-}"
+if [ -n "$CALLING_USER" ] && [ "$CALLING_USER" != "root" ]; then
+    usermod -aG steamdeckctl "$CALLING_USER"
+    echo "Added $CALLING_USER to group steamdeckctl (re-login required)."
+fi
+
 systemctl daemon-reload
 systemctl enable steamdeckcontroller-prepare.service
 systemctl enable steamdeckcontroller.service

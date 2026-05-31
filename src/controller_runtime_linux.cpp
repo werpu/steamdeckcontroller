@@ -93,10 +93,17 @@ std::optional<DeviceKind> classify_device(int fd) {
     const auto rel = ioctl_bits(fd, EVIOCGBIT(EV_REL, REL_MAX), REL_MAX);
     const auto abs = ioctl_bits(fd, EVIOCGBIT(EV_ABS, ABS_MAX), ABS_MAX);
 
-    if (test_bit(ev, EV_ABS) &&
-        (test_bit(key, BTN_GAMEPAD) || test_bit(key, BTN_SOUTH) || test_bit(abs, ABS_X)))
+    // Touch devices are deliberately NOT classified (and thus never grabbed):
+    // the touchscreen stays local so it can drive the frontend's STOP button
+    // while keyboard/mouse/gamepad are grabbed and forwarded to the USB host.
+    // (Touchscreens also expose ABS_X/ABS_Y, so the old ABS_X-only gamepad
+    // check wrongly grabbed them; require real gamepad buttons instead.)
+    const bool is_touch = test_bit(key, BTN_TOUCH) || test_bit(abs, ABS_MT_SLOT);
+
+    if (!is_touch && test_bit(ev, EV_KEY) &&
+        (test_bit(key, BTN_GAMEPAD) || test_bit(key, BTN_SOUTH)))
         return DeviceKind::Gamepad;
-    if (test_bit(ev, EV_REL) && test_bit(rel, REL_X) && test_bit(rel, REL_Y))
+    if (!is_touch && test_bit(ev, EV_REL) && test_bit(rel, REL_X) && test_bit(rel, REL_Y))
         return DeviceKind::Mouse;
     if (test_bit(ev, EV_KEY) && test_bit(key, KEY_A) && test_bit(key, KEY_ENTER))
         return DeviceKind::Keyboard;

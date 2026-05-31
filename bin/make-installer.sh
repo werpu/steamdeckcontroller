@@ -158,7 +158,9 @@ echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
 
 if [ "$NEEDS_REBOOT" = true ]; then
     echo ""
-    echo "A reboot is required for the group membership to take effect."
+    echo "A reboot is required for the group membership to take effect"
+    echo "(so the $REAL_USER account can reach the daemon socket)."
+    echo "The services are enabled and will start automatically after reboot."
     echo "Rebooting in 10 seconds — press Ctrl+C to cancel."
     for i in 10 9 8 7 6 5 4 3 2 1; do
         printf "  %d...\n" "$i"
@@ -167,9 +169,14 @@ if [ "$NEEDS_REBOOT" = true ]; then
     reboot
 else
     echo ""
-    echo "Start now with:"
-    echo "  sudo systemctl start steamdeckcontroller-prepare.service"
-    echo "  sudo systemctl start steamdeckcontroller.service"
+    echo "Starting services..."
+    # Clear any prior failed state from an earlier install, then start.
+    # prepare is non-fatal (daemon uses Wants=, not Requires=).
+    systemctl reset-failed steamdeckcontroller-prepare.service 2>/dev/null || true
+    systemctl start steamdeckcontroller-prepare.service || true
+    systemctl start steamdeckcontroller.service
+    echo ""
+    systemctl --no-pager --lines=0 status steamdeckcontroller.service || true
 fi
 
 exit 0

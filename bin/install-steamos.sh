@@ -83,11 +83,19 @@ echo "Installed steamdeckcontroller to $PREFIX/bin/steamdeckcontroller"
 echo "Installed steamdeckcontrollerd to $PREFIX/bin/steamdeckcontrollerd"
 echo "Installed preparation service: steamdeckcontroller-prepare.service"
 echo "Installed daemon service: steamdeckcontroller.service"
+
 echo ""
-echo "Start services with:"
-echo "  sudo systemctl start steamdeckcontroller-prepare.service"
-echo "  sudo systemctl start steamdeckcontroller.service"
-echo "  systemctl status steamdeckcontroller-prepare.service"
-echo "  systemctl status steamdeckcontroller.service"
+echo "Starting services..."
+systemctl reset-failed steamdeckcontroller-prepare.service 2>/dev/null || true
+systemctl start steamdeckcontroller-prepare.service || true
+systemctl start steamdeckcontroller.service
+echo ""
+systemctl --no-pager --lines=0 status steamdeckcontroller.service || true
+
+if [ -n "$CALLING_USER" ] && [ "$CALLING_USER" != "root" ]; then
+    echo ""
+    echo "NOTE: $CALLING_USER was added to group steamdeckctl. Log out and back in"
+    echo "(or reboot) before running the frontend, so it can reach the daemon socket."
+fi
 echo ""
 echo "The desktop launcher runs the unprivileged GTK frontend."

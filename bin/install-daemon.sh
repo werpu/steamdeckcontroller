@@ -74,10 +74,20 @@ systemctl enable steamdeckcontroller.service
 echo "Installed steamdeckcontrollerd to $PREFIX/bin/steamdeckcontrollerd"
 echo "Installed prepare-gadget.sh to $PREFIX/lib/steamdeckcontroller/"
 echo "Installed and enabled systemd services."
+
 echo ""
-echo "Start the daemon with:"
-echo "  sudo systemctl start steamdeckcontroller-prepare.service"
-echo "  sudo systemctl start steamdeckcontroller.service"
+echo "Starting services..."
+systemctl reset-failed steamdeckcontroller-prepare.service 2>/dev/null || true
+systemctl start steamdeckcontroller-prepare.service || true
+systemctl start steamdeckcontroller.service
+echo ""
+systemctl --no-pager --lines=0 status steamdeckcontroller.service || true
+
+if [ -n "$CALLING_USER" ] && [ "$CALLING_USER" != "root" ]; then
+    echo ""
+    echo "NOTE: $CALLING_USER was added to group steamdeckctl. Log out and back in"
+    echo "(or reboot) before running the frontend, so it can reach the daemon socket."
+fi
 echo ""
 echo "Check status with:"
 echo "  systemctl status steamdeckcontroller.service"

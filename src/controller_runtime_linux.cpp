@@ -196,7 +196,8 @@ static void append_le32(std::vector<uint8_t> &v, uint32_t x) {
     v.push_back((x >> 24) & 0xff);
 }
 
-// Interface + 2 endpoints for one speed tier
+// Interface + Xbox vendor descriptor + 2 endpoints, for one speed tier.
+// Descriptor count for this block = 4 (see build_ffs_descriptors).
 static std::vector<uint8_t> xbox360_interface_block(uint16_t ep_max_pkt) {
     std::vector<uint8_t> b;
     // Interface descriptor
@@ -209,6 +210,16 @@ static std::vector<uint8_t> xbox360_interface_block(uint16_t ep_max_pkt) {
     b.push_back(0x5D);  // bInterfaceSubClass: Xbox
     b.push_back(0x01);  // bInterfaceProtocol: Xbox 360 gamepad
     b.push_back(0);     // iInterface
+    // Xbox 360 vendor-specific descriptor (bDescriptorType 0x21). Real wired
+    // controllers carry this 17-byte descriptor between the interface and the
+    // endpoints; the XInput driver (xusb) expects it to bind cleanly. The
+    // bytes describe the IN endpoint (0x81, 20-byte reports) and the OUT
+    // endpoint (0x01, 8-byte rumble).
+    const std::array<uint8_t, 17> xbox_vendor_desc = {
+        0x11, 0x21, 0x00, 0x01, 0x01, 0x25, 0x81, 0x14,
+        0x00, 0x00, 0x00, 0x00, 0x13, 0x01, 0x08, 0x00, 0x00
+    };
+    b.insert(b.end(), xbox_vendor_desc.begin(), xbox_vendor_desc.end());
     // EP1 IN — interrupt, gamepad reports
     b.push_back(7);     // bLength
     b.push_back(0x05);  // bDescriptorType: ENDPOINT
@@ -216,7 +227,7 @@ static std::vector<uint8_t> xbox360_interface_block(uint16_t ep_max_pkt) {
     b.push_back(0x03);  // bmAttributes: interrupt
     append_le16(b, ep_max_pkt);
     b.push_back(4);     // bInterval (4ms)
-    // EP2 OUT — interrupt, rumble
+    // EP1 OUT — interrupt, rumble
     b.push_back(7);
     b.push_back(0x05);
     b.push_back(0x01);  // OUT ep1
@@ -234,8 +245,8 @@ std::vector<uint8_t> build_ffs_descriptors() {
     append_le32(result, 3);                                   // FUNCTIONFS_DESCRIPTORS_MAGIC_V2
     append_le32(result, 5*4 + fs_block.size() + hs_block.size()); // total length
     append_le32(result, 1 | 2);                               // HAS_FS_DESC | HAS_HS_DESC
-    append_le32(result, 3);                                   // fs_count (iface + 2 eps)
-    append_le32(result, 3);                                   // hs_count
+    append_le32(result, 4);                                   // fs_count (iface + vendor + 2 eps)
+    append_le32(result, 4);                                   // hs_count
     result.insert(result.end(), fs_block.begin(), fs_block.end());
     result.insert(result.end(), hs_block.begin(), hs_block.end());
     return result;

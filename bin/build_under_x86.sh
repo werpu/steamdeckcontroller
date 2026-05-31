@@ -23,6 +23,11 @@ mkdir -p "$DIST_DIR"
 cp "$BUILD_DIR/steamdeckcontrollerd" "$DIST_DIR/steamdeckcontrollerd"
 echo "  dist/steamdeckcontrollerd"
 
+if [ -x "$BUILD_DIR/xbox_gadget_test" ]; then
+    cp "$BUILD_DIR/xbox_gadget_test" "$DIST_DIR/xbox_gadget_test"
+    echo "  dist/xbox_gadget_test"
+fi
+
 if [ -x "$BUILD_DIR/steamdeckcontroller" ]; then
     cp "$BUILD_DIR/steamdeckcontroller" "$DIST_DIR/steamdeckcontroller"
     echo "  dist/steamdeckcontroller"

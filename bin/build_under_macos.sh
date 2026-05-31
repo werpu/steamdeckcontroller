@@ -55,6 +55,10 @@ trap cleanup EXIT
 docker cp "$CONTAINER:/build/steamdeckcontrollerd" "$DIST_DIR/steamdeckcontrollerd"
 echo "  dist/steamdeckcontrollerd"
 
+if docker cp "$CONTAINER:/build/xbox_gadget_test" "$DIST_DIR/xbox_gadget_test" 2>/dev/null; then
+    echo "  dist/xbox_gadget_test"
+fi
+
 if docker cp "$CONTAINER:/build/steamdeckcontroller" "$DIST_DIR/steamdeckcontroller" 2>/dev/null; then
     echo "  dist/steamdeckcontroller"
 else

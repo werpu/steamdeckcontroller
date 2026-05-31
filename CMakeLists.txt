@@ -16,6 +16,12 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_executable(steamdeckcontrollerd src/daemon.cpp)
     target_link_libraries(steamdeckcontrollerd PRIVATE steamdeckcontroller_core)
     install(TARGETS steamdeckcontrollerd RUNTIME DESTINATION bin)
+
+    # Standalone diagnostic: presents ONLY a pure Xbox 360 controller over USB
+    # (no HID, no Steam) and injects a visible test pattern. Used to isolate the
+    # USB-gadget layer from the daemon/Steam/evdev path.
+    add_executable(xbox_gadget_test tools/xbox_gadget_test.cpp)
+    target_link_libraries(xbox_gadget_test PRIVATE steamdeckcontroller_core)
 endif ()
 
 find_package(PkgConfig)

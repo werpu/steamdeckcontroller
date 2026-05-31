@@ -7,6 +7,7 @@
 #include <unistd.h>
 
 #include <cerrno>
+#include <csignal>
 #include <cstring>
 #include <string>
 
@@ -99,6 +100,10 @@ void on_destroy(GtkWidget *, gpointer) {
 } // namespace
 
 int main(int argc, char **argv) {
+    // Writing to the control socket after the daemon closed it would otherwise
+    // deliver SIGPIPE and kill the GUI.
+    std::signal(SIGPIPE, SIG_IGN);
+
     gtk_init(&argc, &argv);
 
     GtkWidget *window = gtk_window_new(GTK_WINDOW_TOPLEVEL);

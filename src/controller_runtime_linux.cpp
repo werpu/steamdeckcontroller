@@ -238,7 +238,11 @@ std::vector<uint8_t> build_ffs_strings() {
 // ---------------------------------------------------------------------------
 // Gadget setup / teardown
 
-void setup_gadget() {
+// Sets up the composite gadget and returns the open FunctionFS ep0 fd via
+// ep0_fd_out. ep0 must remain open for the lifetime of the session: closing
+// the last ep0 handle resets the FunctionFS function and discards the
+// descriptors written to it. The caller owns the fd and must close it on stop.
+void setup_gadget(int &ep0_fd_out) {
     const std::string udc = read_first_udc();
     if (udc.empty())
         throw std::runtime_error("No USB device controller found in /sys/class/udc.");
@@ -300,10 +304,15 @@ void setup_gadget() {
     // --- FunctionFS Xbox 360 gamepad ---
     ensure_directory(gadget / "functions/ffs.xbox360");
     ensure_directory(kFfsMountDir);
+    // Best-effort cleanup of a stale mount left behind by an unclean shutdown,
+    // otherwise mount() below would fail with EBUSY and the daemon could never
+    // recover after a crash.
+    umount(kFfsMountDir);
     if (mount(kFfsFuncName, kFfsMountDir, "functionfs", 0, nullptr) != 0)
         throw std::runtime_error(std::string("FunctionFS mount failed: ") + std::strerror(errno));
 
-    // Write descriptors and strings before linking/binding
+    // Open ep0 and write descriptors + strings. ep0 stays open from here on:
+    // the kernel discards the descriptors if the last ep0 handle is closed.
     {
         const auto descs = build_ffs_descriptors();
         const auto strs  = build_ffs_strings();
@@ -311,12 +320,13 @@ void setup_gadget() {
         int fd = open(ep0.c_str(), O_RDWR);
         if (fd < 0)
             throw std::runtime_error("Cannot open FunctionFS ep0: " + std::string(std::strerror(errno)));
+        // Hand ownership to the caller immediately so a throw below still
+        // closes the fd via the caller's cleanup path.
+        ep0_fd_out = fd;
         if (write(fd, descs.data(), descs.size()) != static_cast<ssize_t>(descs.size()) ||
             write(fd, strs.data(),  strs.size())  != static_cast<ssize_t>(strs.size())) {
-            close(fd);
             throw std::runtime_error("Cannot write FunctionFS descriptors: " + std::string(std::strerror(errno)));
         }
-        close(fd);
     }
 
     ensure_symlink(gadget / "functions/ffs.xbox360",
@@ -456,17 +466,15 @@ void ControllerRuntime::worker_main() {
 
     try {
         set_status(true, "Preparing USB gadget", "Configuring Xbox 360 endpoints via FunctionFS.");
-        setup_gadget();
+        // setup_gadget opens ep0, writes descriptors, and keeps ep0 open
+        // (closing it would discard the descriptors). We own ep0_fd from here.
+        setup_gadget(ep0_fd);
 
         // hidg0 = keyboard, hidg1 = mouse (matches ConfigFS link order)
         keyboard_fd = open("/dev/hidg0", O_WRONLY | O_NONBLOCK);
         if (keyboard_fd < 0) throw std::runtime_error("Cannot open /dev/hidg0 (keyboard): " + std::string(std::strerror(errno)));
         mouse_fd = open("/dev/hidg1", O_WRONLY | O_NONBLOCK);
         if (mouse_fd < 0) throw std::runtime_error("Cannot open /dev/hidg1 (mouse): " + std::string(std::strerror(errno)));
-
-        // Open FunctionFS ep0 for control events
-        ep0_fd = open((std::string(kFfsMountDir) + "/ep0").c_str(), O_RDWR);
-        if (ep0_fd < 0) throw std::runtime_error("Cannot open FunctionFS ep0: " + std::string(std::strerror(errno)));
 
         devices = open_input_devices();
         if (devices.empty()) throw std::runtime_error("No keyboard, mouse, or gamepad event devices found.");

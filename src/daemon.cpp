@@ -3,6 +3,7 @@
 
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <sys/un.h>
 #include <grp.h>
 #include <pwd.h>
@@ -138,6 +139,9 @@ int create_server_socket() {
 int main() {
     std::signal(SIGINT, on_signal);
     std::signal(SIGTERM, on_signal);
+    // A client that closes the connection before reading the response would
+    // otherwise deliver SIGPIPE on write() and terminate the daemon.
+    std::signal(SIGPIPE, SIG_IGN);
 
     sdc::ControllerRuntime runtime;
     int server_fd = -1;
@@ -170,6 +174,15 @@ int main() {
                 close(client_fd);
                 continue;
             }
+
+            // Bound how long a single client can hold the (single-threaded)
+            // accept loop, so a permitted peer cannot hang the daemon by
+            // connecting and never sending a complete command.
+            struct timeval timeout{};
+            timeout.tv_sec = 5;
+            timeout.tv_usec = 0;
+            setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+            setsockopt(client_fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
 
             const std::string command = read_command(client_fd);
             const std::string response = sdc::handle_control_command(runtime, command);

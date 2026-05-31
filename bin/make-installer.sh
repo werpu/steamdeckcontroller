@@ -130,7 +130,7 @@ cat > /etc/systemd/system/steamdeckcontroller.service << EOF
 [Unit]
 Description=Steam Deck Controller USB Passthrough Daemon
 After=multi-user.target steamdeckcontroller-prepare.service
-Requires=steamdeckcontroller-prepare.service
+Wants=steamdeckcontroller-prepare.service
 
 [Service]
 Type=simple

@@ -245,7 +245,11 @@ std::vector<uint8_t> build_ffs_strings() {
 void setup_gadget(int &ep0_fd_out) {
     const std::string udc = read_first_udc();
     if (udc.empty())
-        throw std::runtime_error("No USB device controller found in /sys/class/udc.");
+        throw std::runtime_error(
+            "The Steam Deck must be connected directly to a PC or console before "
+            "pressing Start.\n"
+            "Connect the USB-C port straight to the host (not through a dock), then "
+            "press Start again.");
 
     const std::filesystem::path gadget(kGadgetPath);
     ensure_directory(gadget);

@@ -90,3 +90,32 @@ This is still not a true Xbox 360/XInput USB device. Real wired Xbox controllers
 - [Installation on SteamOS](docs/installation.md)
 - [Cross-building on macOS](docs/cross-build-macos.md)
 - [Privileged daemon and Steam frontend](docs/daemon-frontend-split.md)
+
+## License
+
+This project is licensed under the **GNU General Public License v3.0** (GPLv3).
+See the [LICENSE](LICENSE) file for the full text.
+
+```
+Copyright (C) 2026 Werner Punz
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+```
+
+## AI Disclaimer
+
+Portions of this project were developed with the assistance of an AI coding
+assistant (Anthropic's Claude). All AI-generated code, configuration, and
+documentation were reviewed by a human maintainer, but **may contain errors,
+omissions, or insecure patterns**. This software interacts with privileged
+kernel interfaces (USB gadget/ConfigFS, evdev device grabbing) and runs a
+root daemon — review the code yourself before deploying it, and use it at
+your own risk. No warranty is provided (see the License above).

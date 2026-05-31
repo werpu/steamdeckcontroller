@@ -8,6 +8,8 @@
 #include <sys/poll.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <pthread.h>
+#include <csignal>
 #include <unistd.h>
 
 #include <algorithm>
@@ -152,8 +154,13 @@ void ensure_directory(const std::filesystem::path &path) {
 
 void write_text(const std::filesystem::path &path, const std::string &value) {
     std::ofstream out(path);
-    if (!out) throw std::runtime_error("Cannot write " + path.string() + ": " + std::strerror(errno));
+    if (!out) throw std::runtime_error("Cannot open " + path.string() + ": " + std::strerror(errno));
     out << value;
+    // Flush and check: writing configfs/sysfs attributes (especially the UDC
+    // bind) can fail at write time (e.g. EBUSY/EINVAL). ofstream swallows that
+    // unless we explicitly check, which previously hid failed binds as "OK".
+    out.flush();
+    if (!out) throw std::runtime_error("Cannot write " + path.string() + ": " + std::strerror(errno));
 }
 
 void write_binary(const std::filesystem::path &path, const std::vector<uint8_t> &value) {
@@ -246,6 +253,8 @@ std::vector<uint8_t> build_ffs_strings() {
 // ---------------------------------------------------------------------------
 // Gadget setup / teardown
 
+void unbind_gadget(); // defined below; used to clean up stale state on setup
+
 // Sets up the composite gadget and returns the open FunctionFS ep0 fd via
 // ep0_fd_out. ep0 must remain open for the lifetime of the session: closing
 // the last ep0 handle resets the FunctionFS function and discards the
@@ -258,6 +267,11 @@ void setup_gadget(int &ep0_fd_out) {
             "pressing Start.\n"
             "Connect the USB-C port straight to the host (not through a dock), then "
             "press Start again.");
+
+    // Clean slate: a previous unclean exit (SIGKILL) may have left the gadget
+    // bound to the UDC. Writing gadget attributes (idVendor, ...) while bound
+    // fails with EBUSY, so always tear down any stale gadget first.
+    unbind_gadget();
 
     const std::filesystem::path gadget(kGadgetPath);
     ensure_directory(gadget);
@@ -488,6 +502,18 @@ void ControllerRuntime::set_status(bool running, std::string state, std::string 
 }
 
 void ControllerRuntime::worker_main() {
+    // Block SIGINT/SIGTERM in this worker thread so they are always delivered
+    // to the main thread, whose blocking accept() can then be interrupted for a
+    // clean shutdown (which tears the USB gadget down via unbind_gadget()).
+    // Otherwise the signal may land here, the main thread keeps blocking, the
+    // systemd stop times out, and we get SIGKILL — leaving the gadget bound and
+    // half-configured, which corrupts enumeration on the next start.
+    sigset_t block_set;
+    sigemptyset(&block_set);
+    sigaddset(&block_set, SIGINT);
+    sigaddset(&block_set, SIGTERM);
+    pthread_sigmask(SIG_BLOCK, &block_set, nullptr);
+
     std::vector<InputDevice> devices;
     int keyboard_fd  = -1;
     int mouse_fd     = -1;

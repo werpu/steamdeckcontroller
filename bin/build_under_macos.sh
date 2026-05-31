@@ -22,6 +22,18 @@ if ! docker info &>/dev/null; then
     colima start
 fi
 
+# Prefer BuildKit (the modern builder), but fall back to the legacy builder
+# when the buildx component is not installed, so the build works either way.
+# Install BuildKit to silence the legacy-builder deprecation warning:
+#   brew install docker-buildx
+#   mkdir -p ~/.docker/cli-plugins
+#   ln -sfn "$(brew --prefix)/bin/docker-buildx" ~/.docker/cli-plugins/docker-buildx
+if docker buildx version &>/dev/null; then
+    export DOCKER_BUILDKIT=1
+else
+    export DOCKER_BUILDKIT=0
+fi
+
 echo "==> Building Linux x86_64 binaries inside Docker..."
 docker build \
     --platform linux/amd64 \

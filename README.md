@@ -25,16 +25,30 @@ sudo apt install build-essential cmake pkg-config libgtk-3-dev
 bin/build_under_x86.sh
 ```
 
-**On macOS (cross-compile via Docker + Colima):**
+**On macOS:**
+
+Install the build dependencies once (Homebrew: `cmake`, `docker`, `colima`, `docker-buildx`, and the buildx CLI-plugin link):
 
 ```sh
-brew install docker colima
+bin/macos_install_build_deps.sh
+```
+
+Then either run the native build (compiles and runs the unit tests, no Docker):
+
+```sh
+bin/build_for_macos.sh
+```
+
+or cross-compile the Linux binaries and build the installer via Docker:
+
+```sh
 colima start
 bin/build_under_macos.sh
 ```
 
-See [Cross-building on macOS](docs/cross-build-macos.md) for the full walkthrough.
+The Docker build uses BuildKit (via `docker-buildx`); without it Docker falls back to the deprecated legacy builder, which still works but prints a deprecation warning.
 
+See [Cross-building on macOS](docs/cross-build-macos.md) for the full walkthrough.
 
 If GTK 3 is not installed, CMake still builds the portable unit tests but skips the GTK application target.
 
@@ -46,7 +60,7 @@ Tests run automatically at the end of each build script. On Linux, to run them s
 ctest --test-dir build --output-on-failure
 ```
 
-On macOS tests run inside Docker — just run `bin/build_under_macos.sh`.
+On macOS, `bin/build_for_macos.sh` runs the tests natively, and `bin/build_under_macos.sh` runs them inside Docker.
 
 ## Run
 

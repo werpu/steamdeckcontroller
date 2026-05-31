@@ -1,6 +1,6 @@
 # Cross-Building Linux x86_64 Binaries on macOS
 
-The Steam Deck runs Linux x86_64. If you develop on macOS you cannot build natively, but you can produce the correct Linux binaries using Docker running an x86_64 Ubuntu container. This page covers the full setup from a fresh macOS install.
+The Steam Deck runs Linux x86_64. On macOS you can run the portable unit tests natively (`bin/build_for_macos.sh`), but the Linux daemon and GTK frontend must be cross-compiled using Docker running an x86_64 Ubuntu container. This page covers the Docker cross-build setup from a fresh macOS install.
 
 ## Prerequisites
 
@@ -10,15 +10,34 @@ You need [Homebrew](https://brew.sh). If it is not installed yet:
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 ```
 
-## 1. Install Docker CLI and Colima
+## 1. Install Build Dependencies
 
-Docker Desktop is not required. The Docker CLI plus [Colima](https://github.com/abiosoft/colima) (a lightweight VM that runs the Docker daemon) is enough.
+Run the helper script — it installs everything via Homebrew and links the buildx CLI plugin:
 
 ```sh
-brew install docker colima
+bin/macos_install_build_deps.sh
 ```
 
-`docker` is the CLI client. `colima` provides the daemon (replaces Docker Desktop's background service).
+This installs:
+
+| Package | Purpose |
+|---|---|
+| `cmake` | native unit-test build (`bin/build_for_macos.sh`) |
+| `docker` | Docker CLI client |
+| `colima` | lightweight Docker daemon (replaces Docker Desktop) |
+| `docker-buildx` | BuildKit builder — avoids the deprecated legacy builder |
+
+Docker Desktop is not required. `colima` provides the daemon and [Colima](https://github.com/abiosoft/colima) is a lightweight VM that runs it.
+
+If you prefer to install manually:
+
+```sh
+brew install cmake docker colima docker-buildx
+mkdir -p ~/.docker/cli-plugins
+ln -sfn "$(brew --prefix)/bin/docker-buildx" ~/.docker/cli-plugins/docker-buildx
+```
+
+The buildx CLI-plugin symlink is required: `brew install docker-buildx` installs the binary but does not register it as a Docker plugin, so BuildKit stays unavailable until the symlink exists. Without BuildKit the build still works but uses the deprecated legacy builder (with a warning).
 
 ## 2. Start the Docker Daemon
 
@@ -127,6 +146,17 @@ The Colima VM is not running. Run `colima start` and wait for the `READY` messag
 
 **`image platform mismatch` warning**
 This warning is expected on Apple Silicon. Docker uses QEMU to run the x86_64 container and the binaries produced are correct Linux x86_64 regardless.
+
+**`DEPRECATED: The legacy builder is deprecated` warning**
+BuildKit (buildx) is not active. Run `bin/macos_install_build_deps.sh`, or link the plugin manually:
+```sh
+mkdir -p ~/.docker/cli-plugins
+ln -sfn "$(brew --prefix)/bin/docker-buildx" ~/.docker/cli-plugins/docker-buildx
+```
+The build still works without it — the warning is cosmetic.
+
+**`BuildKit is enabled but the buildx component is missing or broken`**
+`DOCKER_BUILDKIT=1` is set in the environment but buildx is not installed. The build script auto-detects buildx and only enables BuildKit when present, so this only happens if you exported the variable yourself. Install buildx (above) or `unset DOCKER_BUILDKIT`.
 
 **Build fails inside Docker**
 Check the output for the failing step. Common causes:

@@ -16,6 +16,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <map>
 #include <optional>
 #include <set>
@@ -382,7 +383,20 @@ std::vector<InputDevice> open_input_devices() {
                     dev.abs_info[code] = info;
             }
         }
-        ioctl(fd, EVIOCGRAB, 1);
+        const char *kind_name = (*kind == DeviceKind::Keyboard) ? "keyboard"
+                              : (*kind == DeviceKind::Mouse)    ? "mouse" : "gamepad";
+        // EVIOCGRAB can fail (e.g. another process — Steam in Gaming Mode — already
+        // holds the device). We MUST know: a failed grab means events still go to
+        // that other process and never reach us, so nothing is forwarded.
+        if (ioctl(fd, EVIOCGRAB, 1) != 0) {
+            std::cerr << "steamdeckcontrollerd: WARNING EVIOCGRAB FAILED on "
+                      << dev.path << " [" << kind_name << "] '" << dev.name
+                      << "': " << std::strerror(errno)
+                      << " — another process holds this device; its events will NOT be forwarded.\n";
+        } else {
+            std::cerr << "steamdeckcontrollerd: grabbed " << dev.path
+                      << " [" << kind_name << "] '" << dev.name << "'\n";
+        }
         devices.push_back(std::move(dev));
     }
     return devices;
@@ -394,10 +408,20 @@ void release_devices(std::vector<InputDevice> &devices) {
     }
 }
 
-void write_report(int fd, const uint8_t *data, size_t len) {
-    if (fd < 0) return;
+void write_report(int fd, const uint8_t *data, size_t len, const char *what) {
+    if (fd < 0) {
+        std::cerr << "steamdeckcontrollerd: DROP " << what
+                  << " report — endpoint not open (fd<0)\n";
+        return;
+    }
     const ssize_t written = write(fd, data, len);
-    (void)written;
+    if (written < 0) {
+        std::cerr << "steamdeckcontrollerd: WRITE FAILED " << what
+                  << " report: " << std::strerror(errno) << '\n';
+    } else if (static_cast<size_t>(written) != len) {
+        std::cerr << "steamdeckcontrollerd: SHORT WRITE " << what
+                  << " report: " << written << "/" << len << " bytes\n";
+    }
 }
 
 } // namespace
@@ -493,6 +517,7 @@ void ControllerRuntime::worker_main() {
         Xbox360Report gamepad_report;
         int hat_x = 0, hat_y = 0;
         std::set<int> pressed_keys;
+        std::set<std::string> seen_event_devices; // DEBUG: log first event per device
 
         while (!stop_requested_.load()) {
             // Build poll set: ep0 + all input devices
@@ -509,9 +534,17 @@ void ControllerRuntime::worker_main() {
                     switch (ev.type) {
                     case kFfsEventEnable:
                         ep1_fd = open((std::string(kFfsMountDir) + "/ep1").c_str(), O_WRONLY | O_NONBLOCK);
+                        std::cerr << "steamdeckcontrollerd: FFS ENABLE — ep1 "
+                                  << (ep1_fd >= 0 ? "opened (gamepad reports active)"
+                                                  : (std::string("open FAILED: ") + std::strerror(errno)))
+                                  << '\n';
                         break;
                     case kFfsEventDisable:
+                        std::cerr << "steamdeckcontrollerd: FFS DISABLE — closing ep1\n";
                         if (ep1_fd >= 0) { close(ep1_fd); ep1_fd = -1; }
+                        break;
+                    case kFfsEventBind:
+                        std::cerr << "steamdeckcontrollerd: FFS BIND\n";
                         break;
                     case kFfsEventSetup: {
                         // ACK vendor control requests from Windows XInput driver
@@ -544,6 +577,15 @@ void ControllerRuntime::worker_main() {
                 while (read(devices[i].fd, &event, sizeof(event)) == sizeof(event)) {
                     const auto &dev = devices[i];
 
+                    // DEBUG: log the first incoming event per device so we can see
+                    // whether the grabbed devices actually deliver input to us.
+                    if (event.type != 0 /* skip EV_SYN spam */ &&
+                        seen_event_devices.insert(dev.path).second) {
+                        std::cerr << "steamdeckcontrollerd: first input event from "
+                                  << dev.path << " '" << dev.name << "' (type=" << event.type
+                                  << " code=" << event.code << " val=" << event.value << ")\n";
+                    }
+
                     // Keyboard
                     if (dev.kind == DeviceKind::Keyboard && event.type == EV_KEY && event.value != 2) {
                         if (event.value) pressed_keys.insert(event.code);
@@ -570,7 +612,7 @@ void ControllerRuntime::worker_main() {
                                 std::replace(begin, end, *usage, static_cast<uint8_t>(0));
                             }
                         }
-                        write_report(keyboard_fd, keyboard_report.data(), keyboard_report.size());
+                        write_report(keyboard_fd, keyboard_report.data(), keyboard_report.size(), "keyboard");
                     }
 
                     // Mouse
@@ -585,7 +627,7 @@ void ControllerRuntime::worker_main() {
                             if (mask) {
                                 if (event.value) mouse_report[0] |= mask;
                                 else             mouse_report[0] &= static_cast<uint8_t>(~mask);
-                                write_report(mouse_fd, mouse_report.data(), mouse_report.size());
+                                write_report(mouse_fd, mouse_report.data(), mouse_report.size(), "mouse");
                             }
                         } else if (event.type == EV_REL) {
                             std::array<uint8_t, 4> report{mouse_report[0], 0, 0, 0};
@@ -593,7 +635,7 @@ void ControllerRuntime::worker_main() {
                             else if (event.code == REL_Y)     report[2] = static_cast<uint8_t>(clamp_i8(event.value));
                             else if (event.code == REL_WHEEL) report[3] = static_cast<uint8_t>(clamp_i8(event.value));
                             else continue;
-                            write_report(mouse_fd, report.data(), report.size());
+                            write_report(mouse_fd, report.data(), report.size(), "mouse");
                         }
                     }
 
@@ -633,7 +675,7 @@ void ControllerRuntime::worker_main() {
                             }
                         }
                         if (changed)
-                            write_report(ep1_fd, gamepad_report.bytes.data(), gamepad_report.bytes.size());
+                            write_report(ep1_fd, gamepad_report.bytes.data(), gamepad_report.bytes.size(), "gamepad");
                     }
                 }
             }
@@ -642,10 +684,10 @@ void ControllerRuntime::worker_main() {
         // Zero out all reports on stop
         const std::array<uint8_t, 8> zero8{};
         const std::array<uint8_t, 4> zero4{};
-        write_report(keyboard_fd, zero8.data(), zero8.size());
-        write_report(mouse_fd,    zero4.data(), zero4.size());
+        write_report(keyboard_fd, zero8.data(), zero8.size(), "keyboard");
+        write_report(mouse_fd,    zero4.data(), zero4.size(), "mouse");
         const Xbox360Report neutral_gamepad;
-        write_report(ep1_fd, neutral_gamepad.bytes.data(), neutral_gamepad.bytes.size());
+        write_report(ep1_fd, neutral_gamepad.bytes.data(), neutral_gamepad.bytes.size(), "gamepad");
 
         release_devices(devices);
         close(keyboard_fd); keyboard_fd = -1;

@@ -26,6 +26,7 @@
 #include <atomic>
 #include <cerrno>
 #include <csignal>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -147,7 +148,33 @@ std::vector<uint8_t> build_ffs_strings() {
     return r;
 }
 
+// Without the daemon, nothing has loaded the USB-gadget plumbing. The configfs
+// root rejects an unregistered top-level group with EPERM, so creating the
+// gadget dir fails with "Operation not permitted" until libcomposite registers
+// /sys/kernel/config/usb_gadget. Do that here so the tool runs standalone.
+void ensure_gadget_subsystem() {
+    namespace fs = std::filesystem;
+    constexpr const char *kSubsys = "/sys/kernel/config/usb_gadget";
+    if (fs::exists(kSubsys)) return;
+
+    if (std::system("modprobe libcomposite") != 0)
+        std::cerr << "warning: 'modprobe libcomposite' failed\n";
+
+    // Still absent → configfs isn't mounted. Mount it; libcomposite (now loaded)
+    // registers usb_gadget the moment configfs appears.
+    if (!fs::exists(kSubsys) &&
+        mount("none", "/sys/kernel/config", "configfs", 0, nullptr) != 0)
+        std::cerr << "warning: mount configfs: " << std::strerror(errno) << "\n";
+
+    if (!fs::exists(kSubsys))
+        throw std::runtime_error(
+            "/sys/kernel/config/usb_gadget unavailable — run as root; needs "
+            "configfs mounted and the libcomposite module.");
+}
+
 int setup_gadget() {
+    ensure_gadget_subsystem();
+
     const std::string udc = read_first_udc();
     if (udc.empty())
         throw std::runtime_error("No UDC in /sys/class/udc — connect the Deck "

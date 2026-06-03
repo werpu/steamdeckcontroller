@@ -111,9 +111,11 @@ std::vector<uint8_t> xbox360_interface_block(uint16_t ep_max_pkt) {
     std::vector<uint8_t> b;
     // Interface descriptor — Xbox 360 gamepad, interface 0
     b.insert(b.end(), {9, 0x04, 0, 0, 2, 0xFF, 0x5D, 0x01, 0});
-    // Xbox 360 vendor-specific descriptor (type 0x21)
-    b.insert(b.end(), {0x11, 0x21, 0x00, 0x01, 0x01, 0x25, 0x81, 0x14,
-                       0x00, 0x00, 0x00, 0x00, 0x13, 0x01, 0x08, 0x00, 0x00});
+    // NOTE: a real wired pad carries a 17-byte vendor descriptor (type 0x21)
+    // here, but FunctionFS rejects it with EINVAL: the kernel parser only
+    // accepts a USB_TYPE_CLASS|0x01 (0x21) descriptor when the interface class
+    // is HID/CCID/DFU, and ours is vendor (0xFF). xusb binds on VID/PID +
+    // class 0xFF/0x5D/proto 0x01, so we omit it.
     // EP1 IN — interrupt
     b.insert(b.end(), {7, 0x05, 0x81, 0x03});
     append_le16(b, ep_max_pkt);
@@ -132,8 +134,8 @@ std::vector<uint8_t> build_ffs_descriptors() {
     append_le32(r, 3);                                   // MAGIC_V2
     append_le32(r, 5 * 4 + fs_block.size() + hs_block.size());
     append_le32(r, 1 | 2);                               // HAS_FS | HAS_HS
-    append_le32(r, 4);                                   // fs_count (iface + vendor + 2 ep)
-    append_le32(r, 4);                                   // hs_count
+    append_le32(r, 3);                                   // fs_count (iface + 2 ep)
+    append_le32(r, 3);                                   // hs_count
     r.insert(r.end(), fs_block.begin(), fs_block.end());
     r.insert(r.end(), hs_block.begin(), hs_block.end());
     return r;
